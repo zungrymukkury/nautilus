@@ -105,9 +105,8 @@ anchor test --skip-local-validator
 ## Documentation
 
 - [Whitepaper (EN)](docs/Nautilus_Whitepaper_EN.docx)
-- [Whitepaper (JP)](docs/Nautilus_Whitepaper_JP.docx)
 - [Technical Specification v0.4 (EN)](docs/Nautilus_Spec_v0.4_EN.docx)
-- [Technical Specification v0.4 (JP)](docs/Nautilus_Spec_v0.4_JP.docx)
+
 
 ## Status
 
