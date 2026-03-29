@@ -1,21 +1,14 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { Nautilus } from "../target/types/nautilus";
-import { Keypair, SystemProgram, PublicKey } from "@solana/web3.js";
-import {
-  TOKEN_PROGRAM_ID,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  getAssociatedTokenAddress,
-} from "@solana/spl-token";
+import { Keypair, PublicKey } from "@solana/web3.js";
+import { getAssociatedTokenAddress } from "@solana/spl-token";
 
 const MAX_PER_TX = 1_000_000;
 const FIB_ARR = [1,1,2,3,5,8,13,21,34,55,89,144,233,377,610,987,1597,2584,4181,6765];
 
 // ============================================================
 // REGRESSION TEST: fresh-state first-buy
-// Verifies that the first SOL transfer to a fresh treasury PDA
-// works correctly from a completely blank state.
-// Must pass before mainnet deployment.
 // ============================================================
 describe("nautilus v0.4 — fresh state first-buy regression", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
@@ -24,23 +17,12 @@ describe("nautilus v0.4 — fresh state first-buy regression", () => {
 
   const state = Keypair.generate();
   const mint = Keypair.generate();
-
-  let mintAuthority: PublicKey;
   let treasury: PublicKey;
-  let buyerAta: PublicKey;
 
   before(async () => {
-    [mintAuthority] = PublicKey.findProgramAddressSync(
-      [Buffer.from("nautilus"), state.publicKey.toBuffer()],
-      program.programId
-    );
     [treasury] = PublicKey.findProgramAddressSync(
       [Buffer.from("treasury"), state.publicKey.toBuffer()],
       program.programId
-    );
-    buyerAta = await getAssociatedTokenAddress(
-      mint.publicKey,
-      provider.wallet.publicKey
     );
   });
 
@@ -54,17 +36,12 @@ describe("nautilus v0.4 — fresh state first-buy regression", () => {
       .accounts({
         state: state.publicKey,
         mint: mint.publicKey,
-        mintAuthority,
-        treasury,
         authority: provider.wallet.publicKey,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .signers([state, mint])
       .rpc();
 
-    const s = await program.account.nautilusState.fetch(state.publicKey);
+    const s = await (program.account as any).nautilusState.fetch(state.publicKey);
     console.log("  stage:", s.currentStage, "| total_sold:", s.totalSold.toNumber());
     console.log("  treasury_balance:", s.treasuryBalance.toNumber());
   });
@@ -83,17 +60,11 @@ describe("nautilus v0.4 — fresh state first-buy regression", () => {
       .accounts({
         state: state.publicKey,
         mint: mint.publicKey,
-        mintAuthority,
         buyer: provider.wallet.publicKey,
-        buyerAta,
-        treasury,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
       })
       .rpc();
 
-    const s = await program.account.nautilusState.fetch(state.publicKey);
+    const s = await (program.account as any).nautilusState.fetch(state.publicKey);
     const treasuryAfter = await conn.getAccountInfo(treasury);
 
     console.log("  total_sold:", s.totalSold.toNumber(), "✓");
@@ -105,8 +76,6 @@ describe("nautilus v0.4 — fresh state first-buy regression", () => {
   });
 
   it("fresh deploy: sell after first buy behaves correctly", async () => {
-    // A single token cannot be sold — payout would fall below rent minimum.
-    // This is correct behavior — treasury protection is working.
     try {
       await program.methods
         .sell(new anchor.BN(1))
@@ -114,11 +83,6 @@ describe("nautilus v0.4 — fresh state first-buy regression", () => {
           state: state.publicKey,
           mint: mint.publicKey,
           seller: provider.wallet.publicKey,
-          sellerAta: buyerAta,
-          treasury,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
         })
         .rpc();
       console.log("  ✓ sold");
@@ -134,8 +98,6 @@ describe("nautilus v0.4 — fresh state first-buy regression", () => {
 
 // ============================================================
 // REGRESSION TEST: accounted treasury
-// Verifies that direct SOL transfers to the treasury PDA
-// do not affect pricing.
 // ============================================================
 describe("nautilus v0.4 — accounted treasury regression", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
@@ -144,23 +106,12 @@ describe("nautilus v0.4 — accounted treasury regression", () => {
 
   const state = Keypair.generate();
   const mint = Keypair.generate();
-
-  let mintAuthority: PublicKey;
   let treasury: PublicKey;
-  let buyerAta: PublicKey;
 
   before(async () => {
-    [mintAuthority] = PublicKey.findProgramAddressSync(
-      [Buffer.from("nautilus"), state.publicKey.toBuffer()],
-      program.programId
-    );
     [treasury] = PublicKey.findProgramAddressSync(
       [Buffer.from("treasury"), state.publicKey.toBuffer()],
       program.programId
-    );
-    buyerAta = await getAssociatedTokenAddress(
-      mint.publicKey,
-      provider.wallet.publicKey
     );
 
     await program.methods
@@ -168,29 +119,17 @@ describe("nautilus v0.4 — accounted treasury regression", () => {
       .accounts({
         state: state.publicKey,
         mint: mint.publicKey,
-        mintAuthority,
-        treasury,
         authority: provider.wallet.publicKey,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .signers([state, mint])
       .rpc();
 
-    // Buy out stage 1 to establish treasury balance
     await program.methods
       .buy(new anchor.BN(MAX_PER_TX))
       .accounts({
         state: state.publicKey,
         mint: mint.publicKey,
-        mintAuthority,
         buyer: provider.wallet.publicKey,
-        buyerAta,
-        treasury,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
       })
       .rpc();
   });
@@ -198,7 +137,7 @@ describe("nautilus v0.4 — accounted treasury regression", () => {
   it("direct SOL transfer to treasury PDA does not affect price", async () => {
     const conn = provider.connection;
 
-    const sBefore = await program.account.nautilusState.fetch(state.publicKey);
+    const sBefore = await (program.account as any).nautilusState.fetch(state.publicKey);
     const sellBefore = sBefore.treasuryBalance.toNumber() / sBefore.totalSold.toNumber();
     const actualBefore = (await conn.getAccountInfo(treasury))?.lamports ?? 0;
 
@@ -207,7 +146,6 @@ describe("nautilus v0.4 — accounted treasury regression", () => {
     console.log("    actual treasury:   ", actualBefore, "lamports");
     console.log("    sell price:        ", sellBefore.toFixed(2), "lamports");
 
-    // Send 1 SOL directly to treasury PDA
     const transferIx = anchor.web3.SystemProgram.transfer({
       fromPubkey: provider.wallet.publicKey,
       toPubkey: treasury,
@@ -216,7 +154,7 @@ describe("nautilus v0.4 — accounted treasury regression", () => {
     const tx = new anchor.web3.Transaction().add(transferIx);
     await provider.sendAndConfirm(tx);
 
-    const sAfter = await program.account.nautilusState.fetch(state.publicKey);
+    const sAfter = await (program.account as any).nautilusState.fetch(state.publicKey);
     const sellAfter = sAfter.treasuryBalance.toNumber() / sAfter.totalSold.toNumber();
     const actualAfter = (await conn.getAccountInfo(treasury))?.lamports ?? 0;
 
@@ -243,13 +181,7 @@ describe("nautilus v0.4 — accounted treasury regression", () => {
         .accounts({
           state: state.publicKey,
           mint: mint.publicKey,
-          mintAuthority,
           buyer: provider.wallet.publicKey,
-          buyerAta,
-          treasury,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
         })
         .rpc();
       throw new Error("should have failed");
@@ -266,11 +198,6 @@ describe("nautilus v0.4 — accounted treasury regression", () => {
           state: state.publicKey,
           mint: mint.publicKey,
           seller: provider.wallet.publicKey,
-          sellerAta: buyerAta,
-          treasury,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
         })
         .rpc();
       throw new Error("should have failed");
@@ -292,47 +219,25 @@ describe("nautilus v0.4 stress test", () => {
 
   const state = Keypair.generate();
   const mint = Keypair.generate();
-
-  let mintAuthority: PublicKey;
   let treasury: PublicKey;
-  let buyerAta: PublicKey;
 
   before(async () => {
-    [mintAuthority] = PublicKey.findProgramAddressSync(
-      [Buffer.from("nautilus"), state.publicKey.toBuffer()],
-      program.programId
-    );
     [treasury] = PublicKey.findProgramAddressSync(
       [Buffer.from("treasury"), state.publicKey.toBuffer()],
       program.programId
-    );
-    buyerAta = await getAssociatedTokenAddress(
-      mint.publicKey,
-      provider.wallet.publicKey
     );
   });
 
   const buyAccounts = () => ({
     state: state.publicKey,
     mint: mint.publicKey,
-    mintAuthority,
     buyer: provider.wallet.publicKey,
-    buyerAta,
-    treasury,
-    tokenProgram: TOKEN_PROGRAM_ID,
-    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-    systemProgram: SystemProgram.programId,
   });
 
   const sellAccounts = () => ({
     state: state.publicKey,
     mint: mint.publicKey,
     seller: provider.wallet.publicKey,
-    sellerAta: buyerAta,
-    treasury,
-    tokenProgram: TOKEN_PROGRAM_ID,
-    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-    systemProgram: SystemProgram.programId,
   });
 
   async function buyChunked(total: number) {
@@ -354,7 +259,7 @@ describe("nautilus v0.4 stress test", () => {
   }
 
   async function logState(label: string) {
-    const s = await program.account.nautilusState.fetch(state.publicKey);
+    const s = await (program.account as any).nautilusState.fetch(state.publicKey);
     const tb = s.treasuryBalance.toNumber();
     const ts = s.totalSold.toNumber();
     const buyPrice = 1_000_000 * FIB_ARR[Math.min(s.currentStage, 19)];
@@ -376,12 +281,7 @@ describe("nautilus v0.4 stress test", () => {
       .accounts({
         state: state.publicKey,
         mint: mint.publicKey,
-        mintAuthority,
-        treasury,
         authority: provider.wallet.publicKey,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .signers([state, mint])
       .rpc();
@@ -414,7 +314,7 @@ describe("nautilus v0.4 stress test", () => {
   });
 
   it("panic sell: dump 50% of holdings at once", async () => {
-    const s = await program.account.nautilusState.fetch(state.publicKey);
+    const s = await (program.account as any).nautilusState.fetch(state.publicKey);
     const half = Math.floor(s.totalSold.toNumber() / 2);
     const before = await logState("before panic sell");
     await sellChunked(half);
@@ -423,28 +323,28 @@ describe("nautilus v0.4 stress test", () => {
   });
 
   it("price check: floor price holds after selling", async () => {
-    const s = await program.account.nautilusState.fetch(state.publicKey);
+    const s = await (program.account as any).nautilusState.fetch(state.publicKey);
     const sellPrice = s.treasuryBalance.toNumber() / s.totalSold.toNumber();
     console.log("  sell price:", sellPrice.toFixed(2), "lam (should be above initial 1,000,000)");
   });
 
   it("buy back: stage does not decrease", async () => {
-    const before = await program.account.nautilusState.fetch(state.publicKey);
+    const before = await (program.account as any).nautilusState.fetch(state.publicKey);
     await buyChunked(1_000_000);
-    const after = await program.account.nautilusState.fetch(state.publicKey);
+    const after = await (program.account as any).nautilusState.fetch(state.publicKey);
     await logState("after buyback");
     console.log("  stage:", before.currentStage, "→", after.currentStage, "(should not decrease)");
   });
 
   it("second panic sell: dump 80% of holdings", async () => {
-    const s = await program.account.nautilusState.fetch(state.publicKey);
+    const s = await (program.account as any).nautilusState.fetch(state.publicKey);
     const amount = Math.floor(s.totalSold.toNumber() * 0.8);
     await sellChunked(amount);
     await logState("after panic sell (80%)");
   });
 
   it("treasury balance check: should not be drained", async () => {
-    const s = await program.account.nautilusState.fetch(state.publicKey);
+    const s = await (program.account as any).nautilusState.fetch(state.publicKey);
     const tb = s.treasuryBalance.toNumber();
     const ts = s.totalSold.toNumber();
     console.log("  treasury:", (tb / 1e9).toFixed(6), "SOL");
@@ -454,7 +354,7 @@ describe("nautilus v0.4 stress test", () => {
   });
 
   it("last token: can the final token be sold?", async () => {
-    const s = await program.account.nautilusState.fetch(state.publicKey);
+    const s = await (program.account as any).nautilusState.fetch(state.publicKey);
     const remaining = s.totalSold.toNumber();
     if (remaining > 1) {
       await sellChunked(remaining - 1);
