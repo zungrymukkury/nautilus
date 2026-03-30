@@ -1,5 +1,24 @@
 # Nautilus Protocol
 
+> ⚠️ **This is a mainnet beta test. Nautilus may break or stop working.**
+> Only participate if you can read and verify the code yourself.
+> If you find a bug, please open an issue on GitHub.
+> This is not financial advice. Use at your own risk.
+
+---
+
+**Mainnet deployment**
+
+| | |
+|---|---|
+| Program ID | `32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev` |
+| State | `HN72wCf1joPw5XAKqXdhPnTEqWxyKwvzjkqwod9NUHaE` |
+| Mint | `5pSePHCbFyMjkfHMmqoZq5yc3wUxNrQfoVcXX6hDBGLS` |
+
+Verify on-chain: https://explorer.solana.com/address/32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev
+
+---
+
 A Fibonacci-based token launch framework for Solana.
 
 Buy price follows the Fibonacci sequence. Sell price follows the weighted average of the treasury balance. The treasury is a program-derived address with no private key.
@@ -29,7 +48,7 @@ sell_price = treasury_balance ÷ total_sold
 As long as at least one token remains in circulation, the treasury balance stays positive. This is a mathematical guarantee independent of market conditions.
 
 **2. A floor price exists.**
-After virtually every sell transaction, the floor price increases. A 0.5% spread remains in the treasury on each sell, incrementally raising the floor for remaining holders.
+After every sell transaction (as long as at least one token remains), the floor price increases. This is a mathematical guarantee.
 
 ## Stage table
 
@@ -60,15 +79,13 @@ When both price and supply follow the Fibonacci sequence, the buy/sell ratio con
 
 ## CLI
 ```bash
-# Set RPC endpoint and wallet
 export NAUTILUS_RPC=https://api.mainnet-beta.solana.com
 export NAUTILUS_WALLET=~/.config/solana/id.json
 
-# Commands
-node cli/dist/index.js status  <STATE_ADDRESS>
-node cli/dist/index.js buy     <STATE_ADDRESS> <amount>
-node cli/dist/index.js sell    <STATE_ADDRESS> <amount>
-node cli/dist/index.js balance <STATE_ADDRESS>
+node cli/dist/index.js status  HN72wCf1joPw5XAKqXdhPnTEqWxyKwvzjkqwod9NUHaE
+node cli/dist/index.js buy     HN72wCf1joPw5XAKqXdhPnTEqWxyKwvzjkqwod9NUHaE <amount>
+node cli/dist/index.js sell    HN72wCf1joPw5XAKqXdhPnTEqWxyKwvzjkqwod9NUHaE <amount>
+node cli/dist/index.js balance HN72wCf1joPw5XAKqXdhPnTEqWxyKwvzjkqwod9NUHaE
 ```
 
 ## Architecture
@@ -90,9 +107,9 @@ Planned:
 - v0.4 — Deployer holds upgrade authority
 - v0.5 — Revoked — program immutable
 
-To verify current upgrade authority after mainnet deployment:
+To verify current upgrade authority:
 ```bash
-solana program show <PROGRAM_ID>
+solana program show 32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev
 ```
 
 ## Tests
@@ -111,11 +128,13 @@ anchor test --skip-local-validator
 
 ## Status
 
-- [x] Localnet — tested, 18/18 passing
-- [ ] Mainnet — deployment pending
+- [x] Localnet — 18/18 tests passing
+- [x] Mainnet — deployed, beta testing
+- [ ] Verifiable build
+- [ ] Upgrade authority revoked
 
 Framework: Anchor 0.32.1
 
 ---
 
-*This is open-source software. It does not constitute financial advice.*
+*This is experimental software. It does not constitute financial advice.*
