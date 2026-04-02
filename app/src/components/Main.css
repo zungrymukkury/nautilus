@@ -356,3 +356,85 @@ body {
   color: #4a8ad0;
   line-height: 1.2;
 }
+
+.page-tab-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.page-tab {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #1a3a5c;
+  background: transparent;
+  color: #888;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.page-tab.active {
+  background: #1a3a5c;
+  color: #e0e8f0;
+  border-color: #1a56a0;
+}
+
+.launch-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.launch-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.logo-upload {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-preview {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #1a3a5c;
+}
+
+.file-input {
+  color: #888;
+  font-size: 13px;
+}
+
+.launch-note {
+  font-size: 11px;
+  color: #555;
+  margin: 0;
+}
+
+.launch-success {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.launch-success-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.launch-success h2 {
+  color: #e0e8f0;
+  margin: 0 0 8px;
+}
+
+.launch-addr {
+  color: #666;
+  font-family: monospace;
+  font-size: 13px;
+}
