@@ -7,15 +7,17 @@
 
 ---
 
-**Mainnet deployment**
+**Mainnet deployment (v0.5)**
 
 | | |
 |---|---|
 | Program ID | `32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev` |
-| State | `HN72wCf1joPw5XAKqXdhPnTEqWxyKwvzjkqwod9NUHaE` |
-| Mint | `5pSePHCbFyMjkfHMmqoZq5yc3wUxNrQfoVcXX6hDBGLS` |
+| State | `fR1QnzzmucFwwir6o6vajBZQoZEVfYbATWGcstHKSUm` |
+| Mint | `HjyDnB2z7w55mpurq3VEC2gtTdzEieYNHE1J2wpqxaEE` |
 
 Verify on-chain: https://explorer.solana.com/address/32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev
+
+Frontend: https://zungrymukkury.github.io/nautilus/
 
 ---
 
@@ -41,6 +43,8 @@ sell_price = treasury_balance ÷ total_sold
 **Treasury** is a PDA — no private key exists. SOL can only leave through the sell instruction, which requires burning tokens.
 
 **Stages** advance automatically when supply is exhausted. Advancement is irreversible.
+
+**Token Metadata** is registered via Metaplex CPI at initialization. Logo and metadata are permanently stored on Arweave.
 
 ## Two guaranteed properties
 
@@ -82,10 +86,14 @@ When both price and supply follow the Fibonacci sequence, the buy/sell ratio con
 export NAUTILUS_RPC=https://api.mainnet-beta.solana.com
 export NAUTILUS_WALLET=~/.config/solana/id.json
 
-node cli/dist/index.js status  HN72wCf1joPw5XAKqXdhPnTEqWxyKwvzjkqwod9NUHaE
-node cli/dist/index.js buy     HN72wCf1joPw5XAKqXdhPnTEqWxyKwvzjkqwod9NUHaE <amount>
-node cli/dist/index.js sell    HN72wCf1joPw5XAKqXdhPnTEqWxyKwvzjkqwod9NUHaE <amount>
-node cli/dist/index.js balance HN72wCf1joPw5XAKqXdhPnTEqWxyKwvzjkqwod9NUHaE
+# Launch a new token
+node cli/dist/index.js init   <name> <symbol> <logo-path> --ar-key <arweave-wallet>
+
+# Interact with a deployed token
+node cli/dist/index.js status  <STATE_ADDRESS>
+node cli/dist/index.js buy     <STATE_ADDRESS> <amount>
+node cli/dist/index.js sell    <STATE_ADDRESS> <amount>
+node cli/dist/index.js balance <STATE_ADDRESS>
 ```
 
 ## Architecture
@@ -96,16 +104,18 @@ node cli/dist/index.js balance HN72wCf1joPw5XAKqXdhPnTEqWxyKwvzjkqwod9NUHaE
 | Sell price | Weighted average |
 | Treasury | PDA — no private key |
 | Mint authority | PDA — no private key |
+| Token Metadata | Registered via Metaplex CPI |
+| Metadata storage | Arweave (permanent) |
 | Admin functions | None |
-| Upgrade authority | Held by deployer (v0.4) |
+| Upgrade authority | Held by deployer (v0.5) |
 
 ## Upgrade authority
 
 Upgrade authority is currently held by the deployer. No on-chain admin functions exist.
 
 Planned:
-- v0.4 — Deployer holds upgrade authority
-- v0.5 — Revoked — program immutable
+- v0.5 — Deployer holds upgrade authority
+- v0.6 — Revoked — program immutable
 
 To verify current upgrade authority:
 ```bash
@@ -129,8 +139,10 @@ anchor test --skip-local-validator
 ## Status
 
 - [x] Localnet — 18/18 tests passing
-- [x] Mainnet — deployed, beta testing
-- [ ] Verifiable build
+- [x] Mainnet — v0.5 deployed
+- [x] Token Metadata — registered via Metaplex
+- [x] Logo/Metadata — permanently stored on Arweave
+- [ ] Verifiable build (pending Solana Foundation Docker image update)
 - [ ] Upgrade authority revoked
 
 Framework: Anchor 0.32.1

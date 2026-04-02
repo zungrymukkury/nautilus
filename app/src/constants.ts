@@ -1,8 +1,8 @@
 import { PublicKey } from '@solana/web3.js';
 
 export const PROGRAM_ID = new PublicKey('32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev');
-export const STATE_ADDRESS = new PublicKey('HN72wCf1joPw5XAKqXdhPnTEqWxyKwvzjkqwod9NUHaE');
-export const MINT_ADDRESS = new PublicKey('5pSePHCbFyMjkfHMmqoZq5yc3wUxNrQfoVcXX6hDBGLS');
+export const STATE_ADDRESS = new PublicKey('fR1QnzzmucFwwir6o6vajBZQoZEVfYbATWGcstHKSUm');
+export const MINT_ADDRESS = new PublicKey('HjyDnB2z7w55mpurq3VEC2gtTdzEieYNHE1J2wpqxaEE');
 export const RPC_ENDPOINT = 'https://mainnet.helius-rpc.com/?api-key=347da966-6882-46a4-a3ee-ac636bddeeb3';
 
 export const BASE_PRICE = 1_000_000;

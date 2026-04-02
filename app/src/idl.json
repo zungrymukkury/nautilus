@@ -9,18 +9,6 @@
   "instructions": [
     {
       "name": "buy",
-      "docs": [
-        "Purchase tokens at the current Fibonacci stage price.",
-        "",
-        "Buy price = BASE_PRICE_LAMPORTS × FIB[current_stage]",
-        "",
-        "SOL is transferred to the treasury PDA.",
-        "Tokens are minted to the buyer's associated token account.",
-        "Stage advances automatically when supply is exhausted.",
-        "",
-        "Maximum amount per transaction: MAX_AMOUNT_PER_TX.",
-        "Larger purchases must be split across multiple transactions."
-      ],
       "discriminator": [
         102,
         6,
@@ -42,9 +30,6 @@
         },
         {
           "name": "mint_authority",
-          "docs": [
-            "Mint authority PDA. No private key exists."
-          ],
           "pda": {
             "seeds": [
               {
@@ -164,9 +149,6 @@
         },
         {
           "name": "treasury",
-          "docs": [
-            "Treasury PDA vault — receives SOL from buyers."
-          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -212,12 +194,6 @@
     },
     {
       "name": "get_state",
-      "docs": [
-        "Read current protocol state.",
-        "",
-        "sell_price returns 0 when total_sold == 0 (undefined state).",
-        "UIs should display BASE_PRICE_LAMPORTS or \"N/A\" in this case."
-      ],
       "discriminator": [
         45,
         27,
@@ -237,13 +213,6 @@
     },
     {
       "name": "initialize",
-      "docs": [
-        "Initialize a new Nautilus launch.",
-        "Creates state account and SPL mint.",
-        "Treasury is a system-owned PDA vault — no init needed.",
-        "No admin functions exist on-chain after initialization.",
-        "Upgrade authority is separately documented in module-level docs."
-      ],
       "discriminator": [
         175,
         175,
@@ -267,10 +236,6 @@
         },
         {
           "name": "mint_authority",
-          "docs": [
-            "Mint authority PDA. No private key exists.",
-            "seeds: [b\"nautilus\", state.key()]"
-          ],
           "pda": {
             "seeds": [
               {
@@ -295,12 +260,6 @@
         },
         {
           "name": "treasury",
-          "docs": [
-            "Treasury PDA vault. No private key exists.",
-            "seeds: [b\"treasury\", state.key()]",
-            "System-owned PDA verified by seeds constraint.",
-            "SOL can only leave via the sell instruction."
-          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -330,6 +289,108 @@
           "signer": true
         },
         {
+          "name": "metadata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  11,
+                  112,
+                  101,
+                  177,
+                  227,
+                  209,
+                  124,
+                  69,
+                  56,
+                  157,
+                  82,
+                  127,
+                  107,
+                  4,
+                  195,
+                  205,
+                  88,
+                  184,
+                  108,
+                  115,
+                  26,
+                  160,
+                  253,
+                  181,
+                  73,
+                  182,
+                  209,
+                  188,
+                  3,
+                  248,
+                  41,
+                  70
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                11,
+                112,
+                101,
+                177,
+                227,
+                209,
+                124,
+                69,
+                56,
+                157,
+                82,
+                127,
+                107,
+                4,
+                195,
+                205,
+                88,
+                184,
+                108,
+                115,
+                26,
+                160,
+                253,
+                181,
+                73,
+                182,
+                209,
+                188,
+                3,
+                248,
+                41,
+                70
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_metadata_program"
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -342,24 +403,23 @@
           "address": "SysvarRent111111111111111111111111111111111"
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "symbol",
+          "type": "string"
+        },
+        {
+          "name": "uri",
+          "type": "string"
+        }
+      ]
     },
     {
       "name": "sell",
-      "docs": [
-        "Sell tokens at the current weighted average price.",
-        "",
-        "Sell price = state.treasury_balance ÷ state.total_sold",
-        "Payout = sell_price × amount × (1 - 0.5% spread)",
-        "",
-        "Spread remains in treasury, incrementally increasing",
-        "the sell price for remaining holders.",
-        "",
-        "Tokens are burned. SOL is transferred from treasury PDA",
-        "using PDA signer seeds — no private key required.",
-        "",
-        "Maximum amount per transaction: MAX_AMOUNT_PER_TX."
-      ],
       "discriminator": [
         51,
         230,
@@ -476,10 +536,6 @@
         },
         {
           "name": "treasury",
-          "docs": [
-            "Treasury PDA vault — sends SOL to sellers via PDA signer.",
-            "No private key required for this transfer."
-          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -558,7 +614,7 @@
     {
       "code": 6003,
       "name": "ExceedsMaxAmount",
-      "msg": "Amount exceeds maximum per transaction (1,000,000). Split into multiple transactions."
+      "msg": "Amount exceeds maximum per transaction"
     },
     {
       "code": 6004,
@@ -569,75 +625,49 @@
       "code": 6005,
       "name": "InsufficientTreasury",
       "msg": "Treasury balance insufficient for payout plus rent minimum"
+    },
+    {
+      "code": 6006,
+      "name": "InvalidMetadata",
+      "msg": "Invalid metadata: name/symbol/uri too long"
     }
   ],
   "types": [
     {
       "name": "NautilusState",
-      "docs": [
-        "Core protocol state account.",
-        "",
-        "treasury_balance is the accounted SOL balance (source of truth).",
-        "Direct SOL transfers to treasury PDA do not affect this value."
-      ],
       "type": {
         "kind": "struct",
         "fields": [
           {
             "name": "authority",
-            "docs": [
-              "Deployer address. No on-chain admin privileges post-initialization.",
-              "Upgrade authority is held separately (see module docs)."
-            ],
             "type": "pubkey"
           },
           {
             "name": "treasury",
-            "docs": [
-              "Treasury PDA address (seeds: [b\"treasury\", state.key()])"
-            ],
             "type": "pubkey"
           },
           {
             "name": "treasury_bump",
-            "docs": [
-              "Treasury PDA bump seed for signer derivation"
-            ],
             "type": "u8"
           },
           {
             "name": "mint",
-            "docs": [
-              "SPL token mint address"
-            ],
             "type": "pubkey"
           },
           {
             "name": "mint_authority_bump",
-            "docs": [
-              "Mint authority PDA bump seed"
-            ],
             "type": "u8"
           },
           {
             "name": "total_sold",
-            "docs": [
-              "Total tokens currently in circulation"
-            ],
             "type": "u64"
           },
           {
             "name": "current_stage",
-            "docs": [
-              "Current Fibonacci stage (0-indexed)"
-            ],
             "type": "u8"
           },
           {
             "name": "stage_sold",
-            "docs": [
-              "Tokens sold per stage"
-            ],
             "type": {
               "array": [
                 "u64",
@@ -647,9 +677,6 @@
           },
           {
             "name": "treasury_balance",
-            "docs": [
-              "Accounted SOL in treasury (lamports). Source of truth for pricing."
-            ],
             "type": "u64"
           }
         ]

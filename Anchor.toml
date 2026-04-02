@@ -12,7 +12,7 @@ nautilus = "32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "mainnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
