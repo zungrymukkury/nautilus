@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useNautilus } from '../hooks/useNautilus';
-import { FIB } from '../constants';
+import { FIB, STATE_ADDRESS } from '../constants';
 import './Main.css';
 
 function lamportsToSol(lamports: number): string {
@@ -13,12 +13,62 @@ function formatNumber(n: number): string {
   return n.toLocaleString();
 }
 
+interface TokenMeta {
+  name?: string;
+  symbol?: string;
+  image?: string;
+}
+
 export function Main() {
   const { connected } = useWallet();
   const { state, tokenBalance, solBalance, loading, error, buy, sell, refresh } = useNautilus();
   const [tab, setTab] = useState<'buy' | 'sell'>('buy');
   const [amount, setAmount] = useState('');
   const [txStatus, setTxStatus] = useState<string | null>(null);
+  const [meta, setMeta] = useState<TokenMeta>({});
+  const [searchInput, setSearchInput] = useState('');
+
+  // メタデータをURIから取得
+  useEffect(() => {
+    if (!state) return; console.log("fetchMeta called, mint:", state.mint.toString());
+    const fetchMeta = async () => {
+      try {
+        // Metaplex metadata PDAからURIを取得
+        
+        const res = await fetch(
+          `https://mainnet.helius-rpc.com/?api-key=347da966-6882-46a4-a3ee-ac636bddeeb3`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '2.0', id: 1,
+              method: 'getAsset',
+              params: { id: state.mint.toString() }
+            })
+          }
+        );
+        const data = await res.json();
+        const content = data?.result?.content;
+        if (content) {
+          const name = content.metadata?.name;
+          const symbol = content.metadata?.symbol;
+          let image: string | undefined;
+          const jsonUri = content.json_uri;
+          if (jsonUri) {
+            try {
+              const metaRes = await fetch(jsonUri, { redirect: 'follow', mode: 'cors' });
+              const metaJson = await metaRes.json();
+              image = metaJson.image;
+            } catch {}
+          }
+          setMeta({ name, symbol, image });
+        }
+      } catch {
+        // メタデータ取得失敗は無視
+      }
+    };
+    fetchMeta();
+  }, [state]);
 
   const handleBuy = async () => {
     const n = parseInt(amount);
@@ -46,13 +96,25 @@ export function Main() {
     }
   };
 
+  const handleSearch = () => {
+    const addr = searchInput.trim();
+    if (!addr) return;
+    window.location.href = `?state=${addr}`;
+  };
+
   const cost = state && amount ? (parseInt(amount) || 0) * state.buyPrice / 1e9 : 0;
   const payout = state && amount ? (parseInt(amount) || 0) * state.sellPrice * 0.995 / 1e9 : 0;
+
+  const tokenName = meta.name || 'Nautilus';
+  const tokenSymbol = meta.symbol || '';
+  const tokenImage = meta.image;
 
   return (
     <div className="container">
       <header className="header">
-        <div className="logo">🐚</div>
+        <div className="logo">
+          <span>🐚</span>
+        </div>
         <div className="title-block">
           <h1>Nautilus Protocol</h1>
           <p className="subtitle">Fibonacci-powered, treasury-backed launch</p>
@@ -61,10 +123,37 @@ export function Main() {
         <WalletMultiButton />
       </header>
 
+      {/* 検索窓 */}
+      <section className="search-card">
+        <div className="search-row">
+          <input
+            type="text"
+            placeholder="Enter State address to view another token..."
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSearch()}
+            className="search-input"
+          />
+          <button className="search-btn" onClick={handleSearch}>→</button>
+        </div>
+        <div className="current-state">
+          Current: <span className="addr">{STATE_ADDRESS.toString().slice(0, 8)}...{STATE_ADDRESS.toString().slice(-4)}</span>
+        </div>
+      </section>
+
       {state && (
         <section className="status-card">
           <div className="status-title">
-            Protocol Status
+            <div className="token-header">
+              {tokenImage
+                ? <img src={tokenImage} alt={tokenName} className="token-logo-sm" />
+                : <span>🪙</span>
+              }
+              <div className="token-name-block">
+                <span className="token-name">{tokenName}</span>
+                <span className="token-symbol">{tokenSymbol}</span>
+              </div>
+            </div>
             <button className="refresh-btn" onClick={refresh}>↻</button>
           </div>
           <div className="status-grid">

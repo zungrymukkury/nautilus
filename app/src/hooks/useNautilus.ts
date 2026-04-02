@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
+import { PublicKey } from '@solana/web3.js';
 import { Program, AnchorProvider, BN } from '@coral-xyz/anchor';
 import { getAssociatedTokenAddress, getAccount } from '@solana/spl-token';
-import { STATE_ADDRESS, MINT_ADDRESS, FIB, BASE_PRICE } from '../constants';
+import { STATE_ADDRESS, FIB, BASE_PRICE } from '../constants';
 import idl from '../idl.json';
 
 export interface NautilusState {
@@ -11,6 +12,7 @@ export interface NautilusState {
   treasuryBalance: number;
   buyPrice: number;
   sellPrice: number;
+  mint: PublicKey;
 }
 
 export function useNautilus() {
@@ -40,19 +42,20 @@ export function useNautilus() {
       const treasuryBalance = s.treasuryBalance.toNumber();
       const buyPrice = BASE_PRICE * FIB[stage];
       const sellPrice = totalSold === 0 ? 0 : Math.floor(treasuryBalance / totalSold);
+      const mint = s.mint as PublicKey;
 
-      setState({ currentStage: stage, totalSold, treasuryBalance, buyPrice, sellPrice });
+      setState({ currentStage: stage, totalSold, treasuryBalance, buyPrice, sellPrice, mint });
     } catch {
       setError('Failed to fetch protocol state');
     }
   }, [connection]);
 
   const fetchBalances = useCallback(async () => {
-    if (!wallet.publicKey) return;
+    if (!wallet.publicKey || !state) return;
     try {
       const sol = await connection.getBalance(wallet.publicKey);
       setSolBalance(sol);
-      const ata = await getAssociatedTokenAddress(MINT_ADDRESS, wallet.publicKey);
+      const ata = await getAssociatedTokenAddress(state.mint, wallet.publicKey);
       try {
         const tokenAccount = await getAccount(connection, ata);
         setTokenBalance(Number(tokenAccount.amount));
@@ -63,11 +66,11 @@ export function useNautilus() {
       setSolBalance(0);
       setTokenBalance(0);
     }
-  }, [connection, wallet.publicKey]);
+  }, [connection, wallet.publicKey, state]);
 
   const buy = useCallback(async (amount: number) => {
     const program = getProgram();
-    if (!program || !wallet.publicKey) throw new Error('Wallet not connected');
+    if (!program || !wallet.publicKey || !state) throw new Error('Wallet not connected');
     setLoading(true);
     setError(null);
     try {
@@ -76,7 +79,7 @@ export function useNautilus() {
         const chunk = Math.min(remaining, 1_000_000);
         await program.methods
           .buy(new BN(chunk))
-          .accounts({ state: STATE_ADDRESS, mint: MINT_ADDRESS, buyer: wallet.publicKey })
+          .accounts({ state: STATE_ADDRESS, mint: state.mint, buyer: wallet.publicKey })
           .rpc();
         remaining -= chunk;
       }
@@ -85,11 +88,11 @@ export function useNautilus() {
     } finally {
       setLoading(false);
     }
-  }, [getProgram, wallet.publicKey, fetchState, fetchBalances]);
+  }, [getProgram, wallet.publicKey, state, fetchState, fetchBalances]);
 
   const sell = useCallback(async (amount: number) => {
     const program = getProgram();
-    if (!program || !wallet.publicKey) throw new Error('Wallet not connected');
+    if (!program || !wallet.publicKey || !state) throw new Error('Wallet not connected');
     setLoading(true);
     setError(null);
     try {
@@ -98,7 +101,7 @@ export function useNautilus() {
         const chunk = Math.min(remaining, 1_000_000);
         await program.methods
           .sell(new BN(chunk))
-          .accounts({ state: STATE_ADDRESS, mint: MINT_ADDRESS, seller: wallet.publicKey })
+          .accounts({ state: STATE_ADDRESS, mint: state.mint, seller: wallet.publicKey })
           .rpc();
         remaining -= chunk;
       }
@@ -107,7 +110,7 @@ export function useNautilus() {
     } finally {
       setLoading(false);
     }
-  }, [getProgram, wallet.publicKey, fetchState, fetchBalances]);
+  }, [getProgram, wallet.publicKey, state, fetchState, fetchBalances]);
 
   useEffect(() => {
     fetchState();
@@ -116,8 +119,8 @@ export function useNautilus() {
   }, [fetchState]);
 
   useEffect(() => {
-    if (wallet.publicKey) fetchBalances();
-  }, [wallet.publicKey, fetchBalances]);
+    if (wallet.publicKey && state) fetchBalances();
+  }, [wallet.publicKey, state, fetchBalances]);
 
   return { state, tokenBalance, solBalance, loading, error, buy, sell, refresh: fetchState };
 }
