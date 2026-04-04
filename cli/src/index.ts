@@ -5,6 +5,7 @@ import { sellCommand } from './commands/sell';
 import { balanceCommand } from './commands/balance';
 import { sendCommand } from './commands/send';
 import { historyCommand } from './commands/history';
+import { portfolioCommand } from './commands/portfolio';
 import { initCommand } from './commands/init';
 
 const program = new Command();
@@ -63,6 +64,13 @@ program
   .option('-n, --limit <number>', 'Number of transactions', '20')
   .action(async (state, options) => {
     await historyCommand(state, parseInt(options.limit));
+  });
+
+program
+  .command('portfolio')
+  .description('Show all Nautilus token holdings')
+  .action(async () => {
+    await portfolioCommand();
   });
 
 program.parseAsync(process.argv).catch(console.error);
