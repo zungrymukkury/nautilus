@@ -53,7 +53,6 @@ export function Launch() {
     if (!file) return;
     setLogoFile(file);
     setLogoPreview(URL.createObjectURL(file));
-    // ステップをリセット
     setStep(1);
     setUploadedLogoUrl(null);
     setUploadedMetaUrl(null);
@@ -105,7 +104,8 @@ export function Launch() {
     }
   }, [name, symbol, logoFile]);
 
-  // Step 2: Solanaでinitialize（Phantomで先に署名してから送信）
+  // Step 2: Solanaでinitialize
+  // Phantomが推奨する署名順序: wallet.signTransaction → additionalSigner.partialSign
   const handleLaunch = useCallback(async () => {
     if (!connected || !publicKey || !signTransaction || !signAllTransactions) return;
     if (!uploadedMetaUrl || !pendingState || !pendingMint) return;
@@ -137,12 +137,12 @@ export function Launch() {
       tx.recentBlockhash = blockhash;
       tx.feePayer = publicKey;
 
-      // stateとmintで先に署名
-      tx.partialSign(pendingState);
-      tx.partialSign(pendingMint);
-
-      // Phantomで署名（1サイナーとして認識される）
+      // ✅ Phantom推奨順序: walletが先に署名
       const signed = await signTransaction(tx);
+
+      // その後additionalSignerが署名
+      signed.partialSign(pendingState);
+      signed.partialSign(pendingMint);
 
       // 送信
       setStatus('Sending transaction...');
