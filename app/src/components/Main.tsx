@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { PublicKey } from '@solana/web3.js';
 import { useNautilus } from '../hooks/useNautilus';
-import { FIB, STATE_ADDRESS } from '../constants';
+import { FIB, STATE_ADDRESS, PROGRAM_ID, RPC_ENDPOINT } from '../constants';
 import { Launch } from './Launch';
 import './Main.css';
 
@@ -20,8 +21,50 @@ interface TokenMeta {
   image?: string;
 }
 
+interface PortfolioToken {
+  stateAddress: string;
+  mint: string;
+  name?: string;
+  symbol?: string;
+  image?: string;
+  balance?: number;
+  sellPrice?: number;
+  currentStage?: number;
+}
+
+async function fetchTokenMeta(mint: string): Promise<TokenMeta> {
+  try {
+    const res = await fetch(RPC_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1,
+        method: 'getAsset',
+        params: { id: mint }
+      })
+    });
+    const data = await res.json();
+    const content = data?.result?.content;
+    if (!content) return {};
+    const name = content.metadata?.name;
+    const symbol = content.metadata?.symbol;
+    let image: string | undefined;
+    const jsonUri = content.json_uri;
+    if (jsonUri) {
+      try {
+        const metaRes = await fetch(jsonUri, { redirect: 'follow', mode: 'cors' });
+        const metaJson = await metaRes.json();
+        image = metaJson.image;
+      } catch {}
+    }
+    return { name, symbol, image };
+  } catch {
+    return {};
+  }
+}
+
 export function Main() {
-  const { connected } = useWallet();
+  const { connected, publicKey } = useWallet();
   const { state, tokenBalance, solBalance, loading, error, buy, sell, refresh } = useNautilus();
   const [tab, setTab] = useState<'buy' | 'sell'>('buy');
   const [amount, setAmount] = useState('');
@@ -30,42 +73,152 @@ export function Main() {
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState<'home' | 'launch'>('home');
 
+  // Portfolio
+  const [portfolio, setPortfolio] = useState<{ holdings: PortfolioToken[]; created: PortfolioToken[] } | null>(null);
+  const [portfolioLoading, setPortfolioLoading] = useState(false);
+  const [portfolioTab, setPortfolioTab] = useState<'holdings' | 'created'>('holdings');
+
   useEffect(() => {
     if (!state) return;
     const fetchMeta = async () => {
-      try {
-        const res = await fetch(
-          'https://mainnet.helius-rpc.com/?api-key=347da966-6882-46a4-a3ee-ac636bddeeb3',
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              jsonrpc: '2.0', id: 1,
-              method: 'getAsset',
-              params: { id: state.mint.toString() }
-            })
-          }
-        );
-        const data = await res.json();
-        const content = data?.result?.content;
-        if (content) {
-          const name = content.metadata?.name;
-          const symbol = content.metadata?.symbol;
-          let image: string | undefined;
-          const jsonUri = content.json_uri;
-          if (jsonUri) {
-            try {
-              const metaRes = await fetch(jsonUri, { redirect: 'follow', mode: 'cors' });
-              const metaJson = await metaRes.json();
-              image = metaJson.image;
-            } catch {}
-          }
-          setMeta({ name, symbol, image });
-        }
-      } catch {}
+      const m = await fetchTokenMeta(state.mint.toString());
+      setMeta(m);
     };
     fetchMeta();
   }, [state]);
+
+  // ポートフォリオ取得
+  useEffect(() => {
+    if (!connected || !publicKey) {
+      setPortfolio(null);
+      return;
+    }
+    const walletStr = publicKey.toString();
+
+    const load = async () => {
+      setPortfolioLoading(true);
+      try {
+        // 1. ウォレットのSPLトークンを取得
+        const holdingsRes = await fetch(RPC_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0', id: 'holdings',
+            method: 'getTokenAccountsByOwner',
+            params: [
+              walletStr,
+              { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' },
+              { encoding: 'jsonParsed' }
+            ]
+          })
+        });
+        const holdingsData = await holdingsRes.json();
+        const allTokenAccounts = holdingsData.result?.value || [];
+
+        // 残高あるmintだけ抽出
+        const mintsWithBalance: { mint: string; balance: number }[] = allTokenAccounts
+          .map((ta: any) => {
+            const info = ta.account.data.parsed?.info;
+            return {
+              mint: info?.mint as string,
+              balance: parseInt(info?.tokenAmount?.amount || '0'),
+            };
+          })
+          .filter((t: { mint: string; balance: number }) => t.mint && t.balance > 0);
+
+        // 2. 各mintに対してNautilusのStateを並列検索
+        const holdingTokens: PortfolioToken[] = [];
+        await Promise.all(mintsWithBalance.map(async ({ mint, balance }) => {
+          try {
+            const res = await fetch(RPC_ENDPOINT, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                jsonrpc: '2.0', id: mint,
+                method: 'getProgramAccounts',
+                params: [
+                  PROGRAM_ID.toString(),
+                  {
+                    encoding: 'base64',
+                    filters: [
+                      { dataSize: 283 },
+                      { memcmp: { offset: 73, bytes: mint } }
+                    ]
+                  }
+                ]
+              })
+            });
+            const data = await res.json();
+            if (data.result && data.result.length > 0) {
+              const stateAcc = data.result[0];
+              const raw = Buffer.from(stateAcc.account.data[0], 'base64');
+              const totalSold = Number(raw.readBigUInt64LE(106));
+              const currentStage = raw.readUInt8(114);
+              const treasuryBalance = Number(raw.readBigUInt64LE(275));
+              const sellPrice = totalSold > 0 ? Math.floor(treasuryBalance / totalSold) : 0;
+              holdingTokens.push({
+                stateAddress: stateAcc.pubkey,
+                mint,
+                balance,
+                sellPrice,
+                currentStage,
+              });
+            }
+          } catch {}
+        }));
+
+        // 3. Createdトークン取得（authorityがwallet一致）
+        const createdRes = await fetch(RPC_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0', id: 'created',
+            method: 'getProgramAccounts',
+            params: [
+              PROGRAM_ID.toString(),
+              {
+                encoding: 'base64',
+                filters: [
+                  { dataSize: 283 },
+                  { memcmp: { offset: 8, bytes: walletStr } }
+                ]
+              }
+            ]
+          })
+        });
+        const createdData = await createdRes.json();
+        const createdByWallet: PortfolioToken[] = (createdData.result || []).map((acc: any) => {
+          const raw = Buffer.from(acc.account.data[0], 'base64');
+          const mintBytes = raw.slice(73, 105);
+          const mint = new PublicKey(mintBytes).toString();
+          const totalSold = Number(raw.readBigUInt64LE(106));
+          const currentStage = raw.readUInt8(114);
+          const treasuryBalance = Number(raw.readBigUInt64LE(275));
+          const sellPrice = totalSold > 0 ? Math.floor(treasuryBalance / totalSold) : 0;
+          return { stateAddress: acc.pubkey, mint, sellPrice, currentStage };
+        });
+
+        // 4. メタデータを並行取得
+        const fetchMetas = async (tokens: PortfolioToken[]) => {
+          const results = await Promise.all(tokens.map(t => fetchTokenMeta(t.mint)));
+          return tokens.map((t, i) => ({ ...t, ...results[i] }));
+        };
+
+        const [holdingsWithMeta, createdWithMeta] = await Promise.all([
+          fetchMetas(holdingTokens),
+          fetchMetas(createdByWallet),
+        ]);
+
+        setPortfolio({ holdings: holdingsWithMeta, created: createdWithMeta });
+      } catch (e) {
+        console.error('Portfolio fetch error:', e);
+      } finally {
+        setPortfolioLoading(false);
+      }
+    };
+
+    load();
+  }, [connected, publicKey]);
 
   const handleBuy = async () => {
     const n = parseInt(amount);
@@ -97,40 +250,33 @@ export function Main() {
     const addr = searchInput.trim();
     if (!addr) return;
 
-    // 44文字ならMintアドレス（CA）の可能性 → Stateを検索
     if (addr.length >= 32) {
       try {
-        // まずStateアドレスとして試す
-        const res = await fetch(
-          'https://mainnet.helius-rpc.com/?api-key=347da966-6882-46a4-a3ee-ac636bddeeb3',
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              jsonrpc: '2.0', id: 1,
-              method: 'getProgramAccounts',
-              params: [
-                '32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev',
-                {
-                  encoding: 'base64',
-                  filters: [
-                    { dataSize: 283 },
-                    { memcmp: { offset: 73, bytes: addr } }
-                  ]
-                }
-              ]
-            })
-          }
-        );
+        const res = await fetch(RPC_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0', id: 1,
+            method: 'getProgramAccounts',
+            params: [
+              PROGRAM_ID.toString(),
+              {
+                encoding: 'base64',
+                filters: [
+                  { dataSize: 283 },
+                  { memcmp: { offset: 73, bytes: addr } }
+                ]
+              }
+            ]
+          })
+        });
         const data = await res.json();
         if (data.result && data.result.length > 0) {
-          // Mintアドレスに一致するStateが見つかった
           window.location.href = '?state=' + data.result[0].pubkey;
           return;
         }
       } catch {}
     }
-    // StateアドレスとしてそのままURLに使う
     window.location.href = '?state=' + addr;
   };
 
@@ -303,6 +449,93 @@ export function Main() {
                   </button>
                 )}
               </div>
+            </section>
+          )}
+
+          {/* ===== Portfolio Section ===== */}
+          {connected && (
+            <section className="portfolio-card">
+              <div className="status-title">My Portfolio</div>
+              <div className="tab-row">
+                <button
+                  className={'tab' + (portfolioTab === 'holdings' ? ' active' : '')}
+                  onClick={() => setPortfolioTab('holdings')}
+                >Holdings</button>
+                <button
+                  className={'tab' + (portfolioTab === 'created' ? ' active' : '')}
+                  onClick={() => setPortfolioTab('created')}
+                >Created</button>
+              </div>
+
+              {portfolioLoading && (
+                <div className="portfolio-loading">Loading...</div>
+              )}
+
+              {!portfolioLoading && portfolio && portfolioTab === 'holdings' && (
+                portfolio.holdings.length === 0
+                  ? <div className="portfolio-empty">No Nautilus tokens held.</div>
+                  : <div className="portfolio-list">
+                      {portfolio.holdings.map(t => (
+                        <div
+                          key={t.stateAddress}
+                          className="portfolio-item"
+                          onClick={() => { window.location.href = '?state=' + t.stateAddress; }}
+                        >
+                          <div className="portfolio-item-left">
+                            {t.image
+                              ? <img src={t.image} alt={t.name} className="token-logo-xs" />
+                              : <span className="token-logo-placeholder">🪙</span>
+                            }
+                            <div>
+                              <div className="portfolio-name">{t.name || t.mint.slice(0, 8) + '...'}</div>
+                              <div className="portfolio-symbol dim">{t.symbol || ''}</div>
+                            </div>
+                          </div>
+                          <div className="portfolio-item-right">
+                            <div className="portfolio-balance">{formatNumber(t.balance || 0)}</div>
+                            {t.sellPrice && t.sellPrice > 0 && (
+                              <div className="portfolio-value dim">
+                                ≈ {((t.balance || 0) * t.sellPrice * 0.995 / 1e9).toFixed(4)} SOL
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+              )}
+
+              {!portfolioLoading && portfolio && portfolioTab === 'created' && (
+                portfolio.created.length === 0
+                  ? <div className="portfolio-empty">No tokens created yet.</div>
+                  : <div className="portfolio-list">
+                      {portfolio.created.map(t => (
+                        <div
+                          key={t.stateAddress}
+                          className="portfolio-item"
+                          onClick={() => { window.location.href = '?state=' + t.stateAddress; }}
+                        >
+                          <div className="portfolio-item-left">
+                            {t.image
+                              ? <img src={t.image} alt={t.name} className="token-logo-xs" />
+                              : <span className="token-logo-placeholder">🪙</span>
+                            }
+                            <div>
+                              <div className="portfolio-name">{t.name || t.mint.slice(0, 8) + '...'}</div>
+                              <div className="portfolio-symbol dim">{t.symbol || ''}</div>
+                            </div>
+                          </div>
+                          <div className="portfolio-item-right">
+                            <div className="portfolio-stage dim">Stage {t.currentStage}</div>
+                            {t.sellPrice && t.sellPrice > 0 && (
+                              <div className="portfolio-value dim">
+                                Floor: {lamportsToSol(t.sellPrice)} SOL
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+              )}
             </section>
           )}
 

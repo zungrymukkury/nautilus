@@ -465,3 +465,19 @@ body {
   background: #1a56a0;
   color: white;
 }
+
+/* ===== Portfolio ===== */
+.portfolio-card { background: var(--card-bg, #1a1a2e); border: 1px solid var(--border, #2a2a4a); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+.portfolio-loading, .portfolio-empty { color: #888; font-size: 14px; padding: 16px 0; text-align: center; }
+.portfolio-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.portfolio-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.04); border-radius: 8px; cursor: pointer; transition: background 0.15s; }
+.portfolio-item:hover { background: rgba(255,255,255,0.08); }
+.portfolio-item-left { display: flex; align-items: center; gap: 10px; }
+.portfolio-item-right { text-align: right; }
+.token-logo-xs { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+.token-logo-placeholder { font-size: 28px; line-height: 1; }
+.portfolio-name { font-size: 14px; font-weight: 600; }
+.portfolio-symbol { font-size: 12px; }
+.portfolio-balance { font-size: 14px; font-weight: 600; }
+.portfolio-stage { font-size: 13px; }
+.portfolio-value { font-size: 12px; margin-top: 2px; }
