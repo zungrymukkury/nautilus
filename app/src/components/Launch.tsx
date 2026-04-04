@@ -39,6 +39,7 @@ export function Launch() {
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState<string | null>(null);
+  const [doneMint, setDoneMint] = useState<string | null>(null);
 
   // Step 1の結果を保持
   const [_uploadedLogoUrl, setUploadedLogoUrl] = useState<string | null>(null);
@@ -149,6 +150,7 @@ export function Launch() {
       await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight });
 
       setDone(pendingState.publicKey.toString());
+      setDoneMint(pendingMint.publicKey.toString());
       setStatus('Launch complete!');
 
     } catch (e: any) {
@@ -158,13 +160,23 @@ export function Launch() {
     }
   }, [connected, publicKey, signTransaction, signAllTransactions, connection, name, symbol, uploadedMetaUrl, pendingState, pendingMint]);
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
+
   if (done) {
     return (
       <section className="status-card">
         <div className="launch-success">
           <div className="launch-success-icon">🐚</div>
           <h2>Token Launched!</h2>
-          <p className="launch-addr">{done.slice(0, 16)}...{done.slice(-8)}</p>
+          <div className="ca-row">
+            <span className="label">CA (Mint)</span>
+            <div className="ca-value-row">
+              <span className="launch-addr">{doneMint?.slice(0, 16)}...{doneMint?.slice(-8)}</span>
+              <button className="copy-btn" onClick={() => copyToClipboard(doneMint || '')}>Copy</button>
+            </div>
+          </div>
           <a href={'?state=' + done}
             className="action-btn buy-btn"
             style={{ display: 'block', textAlign: 'center', textDecoration: 'none', marginTop: 16 }}

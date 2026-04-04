@@ -93,9 +93,44 @@ export function Main() {
     }
   };
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     const addr = searchInput.trim();
     if (!addr) return;
+
+    // 44文字ならMintアドレス（CA）の可能性 → Stateを検索
+    if (addr.length >= 32) {
+      try {
+        // まずStateアドレスとして試す
+        const res = await fetch(
+          'https://mainnet.helius-rpc.com/?api-key=347da966-6882-46a4-a3ee-ac636bddeeb3',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '2.0', id: 1,
+              method: 'getProgramAccounts',
+              params: [
+                '32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev',
+                {
+                  encoding: 'base64',
+                  filters: [
+                    { dataSize: 283 },
+                    { memcmp: { offset: 73, bytes: addr } }
+                  ]
+                }
+              ]
+            })
+          }
+        );
+        const data = await res.json();
+        if (data.result && data.result.length > 0) {
+          // Mintアドレスに一致するStateが見つかった
+          window.location.href = '?state=' + data.result[0].pubkey;
+          return;
+        }
+      } catch {}
+    }
+    // StateアドレスとしてそのままURLに使う
     window.location.href = '?state=' + addr;
   };
 

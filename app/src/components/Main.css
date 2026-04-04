@@ -438,3 +438,30 @@ body {
   font-family: monospace;
   font-size: 13px;
 }
+
+.ca-row {
+  margin: 8px 0;
+  text-align: left;
+}
+
+.ca-value-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.copy-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #1a56a0;
+  background: transparent;
+  color: #4a8ad0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.copy-btn:active {
+  background: #1a56a0;
+  color: white;
+}
