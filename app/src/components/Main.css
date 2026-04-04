@@ -509,3 +509,12 @@ body {
   padding: 8px 0 16px;
   display: block;
 }
+
+/* ===== Send button ===== */
+.send-btn {
+  background: #7c3aed;
+  color: white;
+}
+.send-btn:hover:not(:disabled) {
+  background: #6d28d9;
+}

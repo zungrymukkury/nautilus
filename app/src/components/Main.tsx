@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { PublicKey } from '@solana/web3.js';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { PublicKey, Transaction } from '@solana/web3.js';
+import {
+  getAssociatedTokenAddress,
+
+  createTransferInstruction,
+  TOKEN_PROGRAM_ID,
+} from '@solana/spl-token';
 import { useNautilus } from '../hooks/useNautilus';
 import { PROGRAM_ID, RPC_ENDPOINT } from '../constants';
 import { Launch } from './Launch';
@@ -65,10 +71,12 @@ async function fetchTokenMeta(mint: string): Promise<TokenMeta> {
 
 // ===== トークン個別ページ（?state=... の場合） =====
 function TokenPage() {
-  const { connected } = useWallet();
+  const { connected, publicKey, signTransaction } = useWallet();
+  const { connection } = useConnection();
   const { state, tokenBalance, solBalance, loading, error, buy, sell, refresh } = useNautilus();
-  const [tab, setTab] = useState<'buy' | 'sell'>('buy');
+  const [tab, setTab] = useState<'buy' | 'sell' | 'send'>('buy');
   const [amount, setAmount] = useState('');
+  const [recipient, setRecipient] = useState('');
   const [txStatus, setTxStatus] = useState<string | null>(null);
   const [meta, setMeta] = useState<TokenMeta>({});
 
@@ -98,6 +106,72 @@ function TokenPage() {
       await sell(n);
       setTxStatus('Done');
       setAmount('');
+    } catch (e: any) {
+      setTxStatus('Error: ' + e.message?.slice(0, 60));
+    }
+  };
+
+  const handleSend = async () => {
+    const n = parseInt(amount);
+    if (!n || n <= 0) return;
+    if (!recipient.trim()) return;
+    if (!publicKey || !signTransaction || !state) return;
+
+    try {
+      setTxStatus('Confirm in Phantom...');
+
+      const mint = state.mint;
+      const recipientKey = new PublicKey(recipient.trim());
+
+      // 送信元ATA
+      const senderAta = await getAssociatedTokenAddress(mint, publicKey);
+
+      // 受信者のATAを取得（なければ作成）
+      const recipientAtaInfo = await connection.getAccountInfo(
+        await getAssociatedTokenAddress(mint, recipientKey)
+      );
+
+      const tx = new Transaction();
+
+      // 受信者のATAがない場合はcreate instruction追加
+      if (!recipientAtaInfo) {
+        const { createAssociatedTokenAccountInstruction } = await import('@solana/spl-token');
+        const recipientAta = await getAssociatedTokenAddress(mint, recipientKey);
+        tx.add(
+          createAssociatedTokenAccountInstruction(
+            publicKey,
+            recipientAta,
+            recipientKey,
+            mint
+          )
+        );
+      }
+
+      const recipientAta = await getAssociatedTokenAddress(mint, recipientKey);
+
+      tx.add(
+        createTransferInstruction(
+          senderAta,
+          recipientAta,
+          publicKey,
+          n,
+          [],
+          TOKEN_PROGRAM_ID
+        )
+      );
+
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = publicKey;
+
+      const signed = await signTransaction(tx);
+      const sig = await connection.sendRawTransaction(signed.serialize());
+      await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight });
+
+      setTxStatus('Done');
+      setAmount('');
+      setRecipient('');
+      refresh();
     } catch (e: any) {
       setTxStatus('Error: ' + e.message?.slice(0, 60));
     }
@@ -185,14 +259,27 @@ function TokenPage() {
           <div className="tab-row">
             <button
               className={'tab' + (tab === 'buy' ? ' active' : '')}
-              onClick={() => { setTab('buy'); setAmount(''); setTxStatus(null); }}
+              onClick={() => { setTab('buy'); setAmount(''); setRecipient(''); setTxStatus(null); }}
             >Buy</button>
             <button
               className={'tab' + (tab === 'sell' ? ' active' : '')}
-              onClick={() => { setTab('sell'); setAmount(''); setTxStatus(null); }}
+              onClick={() => { setTab('sell'); setAmount(''); setRecipient(''); setTxStatus(null); }}
             >Sell</button>
+            <button
+              className={'tab' + (tab === 'send' ? ' active' : '')}
+              onClick={() => { setTab('send'); setAmount(''); setRecipient(''); setTxStatus(null); }}
+            >Send</button>
           </div>
           <div className="trade-form">
+            {tab === 'send' && (
+              <input
+                type="text"
+                placeholder="Recipient wallet address"
+                value={recipient}
+                onChange={e => { setRecipient(e.target.value); setTxStatus(null); }}
+                className="amount-input"
+              />
+            )}
             <input
               type="number"
               placeholder="Amount (tokens)"
@@ -215,13 +302,23 @@ function TokenPage() {
                 {txStatus}
               </div>
             )}
-            {tab === 'buy' ? (
+            {tab === 'buy' && (
               <button className="action-btn buy-btn" onClick={handleBuy} disabled={loading || !amount || parseInt(amount) <= 0}>
                 {loading ? 'Processing...' : 'Buy'}
               </button>
-            ) : (
+            )}
+            {tab === 'sell' && (
               <button className="action-btn sell-btn" onClick={handleSell} disabled={loading || !amount || parseInt(amount) <= 0}>
                 {loading ? 'Processing...' : 'Sell'}
+              </button>
+            )}
+            {tab === 'send' && (
+              <button
+                className="action-btn send-btn"
+                onClick={handleSend}
+                disabled={loading || !amount || parseInt(amount) <= 0 || !recipient.trim()}
+              >
+                Send
               </button>
             )}
           </div>
@@ -230,7 +327,7 @@ function TokenPage() {
 
       {!connected && (
         <section className="connect-prompt">
-          <p>Connect your wallet to buy and sell.</p>
+          <p>Connect your wallet to buy, sell, and send.</p>
         </section>
       )}
 
@@ -257,7 +354,6 @@ function HomePage() {
     const load = async () => {
       setPortfolioLoading(true);
       try {
-        // 1. ウォレットのSPLトークンを取得
         const holdingsRes = await fetch(RPC_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -281,7 +377,6 @@ function HomePage() {
           })
           .filter((t: { mint: string; balance: number }) => t.mint && t.balance > 0);
 
-        // 2. 各mintでNautilusのStateを並列検索
         const holdingTokens: PortfolioToken[] = [];
         await Promise.all(mintsWithBalance.map(async ({ mint, balance }) => {
           try {
@@ -310,7 +405,6 @@ function HomePage() {
           } catch {}
         }));
 
-        // 3. Createdトークン取得
         const createdRes = await fetch(RPC_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -334,7 +428,6 @@ function HomePage() {
           return { stateAddress: acc.pubkey, mint, sellPrice, currentStage };
         });
 
-        // 4. メタデータ並行取得
         const fetchMetas = async (tokens: PortfolioToken[]) => {
           const results = await Promise.all(tokens.map(t => fetchTokenMeta(t.mint)));
           return tokens.map((t, i) => ({ ...t, ...results[i] }));
@@ -382,7 +475,6 @@ function HomePage() {
     window.location.href = '?state=' + addr;
   };
 
-  // 合計ポートフォリオ価値（SOL）
   const totalValueLamports = portfolio?.holdings.reduce((sum, t) => {
     return sum + (t.balance || 0) * (t.sellPrice || 0) * 0.995;
   }, 0) ?? 0;
@@ -406,7 +498,6 @@ function HomePage() {
 
       {connected && (
         <section className="portfolio-card">
-          {/* 合計価値 */}
           {portfolio && !portfolioLoading && (
             <div className="portfolio-total">
               <div className="portfolio-total-label">Portfolio Value</div>
@@ -510,7 +601,6 @@ export function Main() {
   const hasState = params.has('state');
   const [page, setPage] = useState<'home' | 'launch'>('home');
 
-  // ?state= がある場合はトークン個別ページを表示
   if (hasState) {
     return (
       <div className="container">
