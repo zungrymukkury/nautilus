@@ -2,14 +2,14 @@ import chalk from "chalk";
 import { PublicKey } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import { getAssociatedTokenAddress, getAccount } from "@solana/spl-token";
-import { getProvider, loadWallet, loadIdl, PROGRAM_ID, getPDAs, formatLamports } from "../config";
+import { getProvider, loadWallet, loadIdl, PROGRAM_ID, getPDAs, formatLamports, resolveState } from "../config";
 
 export async function balanceCommand(stateAddress: string) {
   const wallet = loadWallet();
   const provider = getProvider(wallet);
   anchor.setProvider(provider);
 
-  const stateKey = new PublicKey(stateAddress);
+  const stateKey = await resolveState(stateAddress);
   const idl = loadIdl();
   const program = new anchor.Program(idl, provider);
 

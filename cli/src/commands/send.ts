@@ -7,7 +7,7 @@ import {
   createTransferInstruction,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
-import { getProvider, loadWallet, loadIdl, getPDAs, formatLamports } from "../config";
+import { getProvider, loadWallet, loadIdl, getPDAs, formatLamports, resolveState } from "../config";
 import { Transaction } from "@solana/web3.js";
 
 export async function sendCommand(stateAddress: string, recipient: string, amount: number) {
@@ -20,7 +20,7 @@ export async function sendCommand(stateAddress: string, recipient: string, amoun
   const provider = getProvider(wallet);
   anchor.setProvider(provider);
 
-  const stateKey = new PublicKey(stateAddress);
+  const stateKey = await resolveState(stateAddress);
   const recipientKey = new PublicKey(recipient);
   const idl = loadIdl();
   const program = new anchor.Program(idl, provider);

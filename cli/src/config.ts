@@ -9,7 +9,6 @@ export const BASE_PRICE = 1_000_000;
 export const MAX_PER_TX = 1_000_000;
 export const PROGRAM_ID = new PublicKey("32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev");
 
-
 const IDL_PATH = path.resolve(__dirname, "../../target/idl/nautilus.json");
 
 export function loadIdl() {
@@ -56,4 +55,43 @@ export function formatLamports(lamports: number): string {
   const sol = lamports / 1e9;
   if (sol >= 1) return `${sol.toFixed(4)} SOL`;
   return `${lamports.toLocaleString()} lamports`;
+}
+
+// CAまたはStateアドレスを受け取ってStateのPublicKeyを返す
+// CAの場合: getProgramAccountsでmint offset:73を検索
+// Stateアドレスの場合: そのまま返す
+export async function resolveState(input: string): Promise<PublicKey> {
+  const conn = getConnection();
+  const inputKey = new PublicKey(input);
+
+  // まずStateアドレスとして試す（getNautilusStateでfetchできるか）
+  // getProgramAccountsでmint=inputのStateを検索してみる
+  const rpcUrl = process.env.NAUTILUS_RPC || "http://127.0.0.1:8899";
+  const res = await fetch(rpcUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0", id: 1,
+      method: "getProgramAccounts",
+      params: [
+        PROGRAM_ID.toString(),
+        {
+          encoding: "base64",
+          filters: [
+            { dataSize: 283 },
+            { memcmp: { offset: 73, bytes: input } }
+          ]
+        }
+      ]
+    })
+  });
+  const data = await res.json() as any;
+
+  if (data.result && data.result.length > 0) {
+    // CAとしてヒット → StateアドレスをPublicKeyで返す
+    return new PublicKey(data.result[0].pubkey);
+  }
+
+  // CAとしてヒットしなかった → Stateアドレスとして扱う
+  return inputKey;
 }
