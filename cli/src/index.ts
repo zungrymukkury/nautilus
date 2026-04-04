@@ -3,6 +3,7 @@ import { statusCommand } from './commands/status';
 import { buyCommand } from './commands/buy';
 import { sellCommand } from './commands/sell';
 import { balanceCommand } from './commands/balance';
+import { sendCommand } from './commands/send';
 import { initCommand } from './commands/init';
 
 const program = new Command();
@@ -46,6 +47,13 @@ program
   .description('Show token balance')
   .action(async (state) => {
     await balanceCommand(state);
+  });
+
+program
+  .command('send <state> <recipient> <amount>')
+  .description('Send tokens to another wallet')
+  .action(async (state, recipient, amount) => {
+    await sendCommand(state, recipient, parseInt(amount));
   });
 
 program.parseAsync(process.argv).catch(console.error);
