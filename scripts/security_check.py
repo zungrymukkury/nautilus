@@ -9,11 +9,15 @@ import sys
 import json
 import urllib.request
 
-def call_claude(prompt: str, code: str) -> str:
+def call_claude(prompt: str, code: str, cargo: str = "") -> str:
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         print("Error: ANTHROPIC_API_KEY not set", file=sys.stderr)
         sys.exit(1)
+
+    content = f"{prompt}\n\n```rust\n{code}\n```"
+    if cargo:
+        content += f"\n\n```toml\n{cargo}\n```"
 
     payload = {
         "model": "claude-sonnet-4-20250514",
@@ -21,7 +25,7 @@ def call_claude(prompt: str, code: str) -> str:
         "messages": [
             {
                 "role": "user",
-                "content": f"{prompt}\n\n```rust\n{code}\n```"
+                "content": content
             }
         ]
     }
@@ -43,7 +47,8 @@ def call_claude(prompt: str, code: str) -> str:
 
 PROMPT = """
 You are a Solana smart contract security auditor.
-Analyze the following Anchor/Rust program against ALL of these checklists:
+Analyze the following Anchor/Rust program against ALL of these checklists.
+A Cargo.toml is also provided for dependency vulnerability checks.
 
 ## Trail of Bits (6 items)
 1. Arbitrary CPI - unchecked program IDs in CPI calls
@@ -68,7 +73,7 @@ Analyze the following Anchor/Rust program against ALL of these checklists:
 14. Time-sensitive logic - timestamp or slot dependencies
 
 ## Cantina / QuillAudits (2 items)
-15. Dependency vulnerabilities - known CVEs in dependencies
+15. Dependency vulnerabilities - check Cargo.toml versions against known CVEs
 16. Access control completeness - all privileged operations protected
 
 ## Sealevel Attacks coral-xyz (10 items)
@@ -111,10 +116,20 @@ def main():
     with open(lib_path, "r") as f:
         code = f.read()
 
+    # Cargo.tomlも読み込む
+    cargo_path = "programs/nautilus/Cargo.toml"
+    cargo = ""
+    if os.path.exists(cargo_path):
+        with open(cargo_path, "r") as f:
+            cargo = f.read()
+        print(f"Cargo.toml found: {cargo_path}")
+    else:
+        print(f"Cargo.toml not found at {cargo_path}, skipping dependency check")
+
     print(f"Running security check on {lib_path}...")
     print(f"Code length: {len(code)} chars\n")
 
-    result = call_claude(PROMPT, code)
+    result = call_claude(PROMPT, code, cargo)
 
     summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary_file:
