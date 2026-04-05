@@ -115,6 +115,7 @@ pub mod nautilus {
             .ok_or(NautilusError::Overflow)?;
         let total_cost = price.checked_mul(amount).ok_or(NautilusError::Overflow)?;
 
+        // SOL transfer: buyer → treasury
         let cpi_context = CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
             system_program::Transfer {
@@ -124,6 +125,7 @@ pub mod nautilus {
         );
         system_program::transfer(cpi_context, total_cost)?;
 
+        // Mint tokens to buyer
         let state_key = state.key();
         let mint_bump = state.mint_authority_bump;
         let mint_seeds = &[b"nautilus".as_ref(), state_key.as_ref(), &[mint_bump]];
@@ -142,11 +144,16 @@ pub mod nautilus {
             amount,
         )?;
 
+        // Update state — checked_add for consistency with other arithmetic
         state.treasury_balance = state.treasury_balance
             .checked_add(total_cost)
             .ok_or(NautilusError::Overflow)?;
-        state.stage_sold[stage] += amount;
-        state.total_sold += amount;
+        state.stage_sold[stage] = state.stage_sold[stage]
+            .checked_add(amount)
+            .ok_or(NautilusError::Overflow)?;
+        state.total_sold = state.total_sold
+            .checked_add(amount)
+            .ok_or(NautilusError::Overflow)?;
 
         if state.stage_sold[stage] >= STAGE_SUPPLY[stage] && stage < 19 {
             state.current_stage += 1;
@@ -178,6 +185,15 @@ pub mod nautilus {
             NautilusError::InsufficientTreasury
         );
 
+        // CEI: Update state before CPIs
+        state.treasury_balance = state.treasury_balance
+            .checked_sub(payout)
+            .ok_or(NautilusError::Overflow)?;
+        state.total_sold = state.total_sold
+            .checked_sub(amount)
+            .ok_or(NautilusError::Overflow)?;
+
+        // Burn tokens from seller
         token::burn(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -190,8 +206,9 @@ pub mod nautilus {
             amount,
         )?;
 
-        let state_key = state.key();
-        let treasury_bump = state.treasury_bump;
+        // SOL transfer: treasury → seller
+        let state_key = ctx.accounts.state.key();
+        let treasury_bump = ctx.accounts.state.treasury_bump;
         let treasury_seeds = &[b"treasury".as_ref(), state_key.as_ref(), &[treasury_bump]];
         let treasury_signer = &[&treasury_seeds[..]];
 
@@ -204,13 +221,6 @@ pub mod nautilus {
             treasury_signer,
         );
         system_program::transfer(cpi_context, payout)?;
-
-        state.treasury_balance = state.treasury_balance
-            .checked_sub(payout)
-            .ok_or(NautilusError::Overflow)?;
-        state.total_sold = state.total_sold
-            .checked_sub(amount)
-            .ok_or(NautilusError::Overflow)?;
 
         msg!("Sell | avg_price {} | amount {} | payout {} | spread {}",
             avg_price, amount, payout, spread);
