@@ -1,6 +1,8 @@
 # Nautilus Protocol
 
-> ⚠️ **This is a mainnet beta test. Nautilus may break or stop working.**
+![Security Audit](https://github.com/zungrymukkury/nautilus/actions/workflows/security-check.yml/badge.svg)
+
+> ⚠️ **This is a mainnet beta. Nautilus may break or stop working.**
 > Only participate if you can read and verify the code yourself.
 > If you find a bug, please open an issue on GitHub.
 > This is not financial advice. Use at your own risk.
@@ -13,7 +15,7 @@
 |---|---|
 | Program ID | `32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev` |
 | State | `fR1QnzzmucFwwir6o6vajBZQoZEVfYbATWGcstHKSUm` |
-| Mint | `HjyDnB2z7w55mpurq3VEC2gtTdzEieYNHE1J2wpqxaEE` |
+| Mint (CA) | `HjyDnB2z7w55mpurq3VEC2gtTdzEieYNHE1J2wpqxaEE` |
 
 Verify on-chain: https://explorer.solana.com/address/32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev
 
@@ -24,6 +26,7 @@ Frontend: https://zungrymukkury.github.io/nautilus/
 A Fibonacci-based token launch framework for Solana.
 
 Buy price follows the Fibonacci sequence. Sell price follows the weighted average of the treasury balance. The treasury is a program-derived address with no private key.
+
 ```
 Fibonacci controls supply. The market controls price. Nobody controls anything else. Just math.
 ```
@@ -82,18 +85,24 @@ When both price and supply follow the Fibonacci sequence, the buy/sell ratio con
 ```
 
 ## CLI
+
+All commands accept either a CA (Mint address) or State address — the CLI resolves automatically.
+
 ```bash
 export NAUTILUS_RPC=https://api.mainnet-beta.solana.com
 export NAUTILUS_WALLET=~/.config/solana/id.json
 
 # Launch a new token
-node cli/dist/index.js init   <name> <symbol> <logo-path> --ar-key <arweave-wallet>
+node cli/dist/index.js init <name> <symbol> <logo-path> --ar-key <arweave-wallet>
 
-# Interact with a deployed token
-node cli/dist/index.js status  <STATE_ADDRESS>
-node cli/dist/index.js buy     <STATE_ADDRESS> <amount>
-node cli/dist/index.js sell    <STATE_ADDRESS> <amount>
-node cli/dist/index.js balance <STATE_ADDRESS>
+# Interact with a deployed token (CA or State address)
+node cli/dist/index.js status    <CA_OR_STATE>
+node cli/dist/index.js buy       <CA_OR_STATE> <amount>
+node cli/dist/index.js sell      <CA_OR_STATE> <amount>
+node cli/dist/index.js send      <CA_OR_STATE> <recipient> <amount>
+node cli/dist/index.js balance   <CA_OR_STATE>
+node cli/dist/index.js history   <CA_OR_STATE>
+node cli/dist/index.js portfolio
 ```
 
 ## Architecture
@@ -109,13 +118,20 @@ node cli/dist/index.js balance <STATE_ADDRESS>
 | Admin functions | None |
 | Upgrade authority | Held by deployer (v0.5) |
 
+## Security
+
+Automated audit runs on every push via GitHub Actions, checking 26 items from Trail of Bits, Neodyme, SlowMist, Zealynx, Cantina/QuillAudits, and Sealevel Attacks.
+
+Latest result: **26/26 PASS — Critical issues: None**
+
+View full audit history: https://github.com/zungrymukkury/nautilus/actions
+
 ## Upgrade authority
 
 Upgrade authority is currently held by the deployer. No on-chain admin functions exist.
 
-Planned:
-- v0.5 — Deployer holds upgrade authority
-- v0.6 — Revoked — program immutable
+- v0.5 (current) — Deployer holds upgrade authority
+- v0.6 (planned) — Revoked — program immutable
 
 To verify current upgrade authority:
 ```bash
@@ -125,8 +141,11 @@ solana program show 32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev
 ## Tests
 
 18 tests passing. Covers fresh-state regression, accounted treasury regression, ExceedsMaxAmount, and full stress test through stage 5 with panic sells.
+
+See [DEVELOPMENT.md](DEVELOPMENT.md) for local test setup instructions.
+
 ```bash
-anchor test --skip-local-validator
+make test-local
 ```
 
 ## Documentation
@@ -142,6 +161,7 @@ anchor test --skip-local-validator
 - [x] Mainnet — v0.5 deployed
 - [x] Token Metadata — registered via Metaplex
 - [x] Logo/Metadata — permanently stored on Arweave
+- [x] Automated security audit — 26/26 PASS on every push
 - [ ] Verifiable build (pending Solana Foundation Docker image update)
 - [ ] Upgrade authority revoked
 
