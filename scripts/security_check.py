@@ -56,6 +56,7 @@ IMPORTANT: This program uses the Anchor framework. When evaluating security chec
 - `Signer<'info>` enforces signature verification
 - Seeds/bump constraints enforce PDA derivation
 
+Do NOT flag division-by-zero risks where checked_div is already used and upstream require! guards prevent zero denominators.
 Do NOT flag issues that are already handled by Anchor's framework unless the protection is explicitly bypassed.
 
 Analyze the following Anchor/Rust program against ALL of these checklists.
