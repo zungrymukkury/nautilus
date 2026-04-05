@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""
+Nautilus Protocol - Automated Security Check
+Trail of Bits / Neodyme / SlowMist / Zealynx / Cantina / Sealevel Attacks
+"""
+
+import os
+import sys
+import json
+import urllib.request
+
+def call_claude(prompt: str, code: str) -> str:
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        print("Error: ANTHROPIC_API_KEY not set", file=sys.stderr)
+        sys.exit(1)
+
+    payload = {
+        "model": "claude-sonnet-4-20250514",
+        "max_tokens": 4000,
+        "messages": [
+            {
+                "role": "user",
+                "content": f"{prompt}\n\n```rust\n{code}\n```"
+            }
+        ]
+    }
+
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=json.dumps(payload).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01"
+        }
+    )
+
+    with urllib.request.urlopen(req) as resp:
+        data = json.loads(resp.read())
+        return data["content"][0]["text"]
+
+
+PROMPT = """
+You are a Solana smart contract security auditor.
+Analyze the following Anchor/Rust program against ALL of these checklists:
+
+## Trail of Bits (6 items)
+1. Arbitrary CPI - unchecked program IDs in CPI calls
+2. Improper PDA Validation - not using canonical bump
+3. Missing Ownership Check - deserializing without owner validation
+4. Missing Signer Check - authority operations without is_signer
+5. Sysvar Account Spoofing - accepting sysvar from user input
+6. Improper Instruction Introspection - absolute indexes
+
+## Neodyme (3 items)
+7. Account Confusions - same data structure used for different account types
+8. PDA Seed Collision - different roles sharing same seeds
+9. Reentrancy - external calls before state updates
+
+## SlowMist (2 items)
+10. Integer Overflow/Underflow - missing checked arithmetic
+11. Checks-Effects-Interactions pattern - state updated after external calls
+
+## Zealynx 2026 (3 items)
+12. Compute Unit overflow - unbounded loops or excessive CU usage
+13. Token-2022 Transfer Hook risks - if applicable
+14. Time-sensitive logic - timestamp or slot dependencies
+
+## Cantina / QuillAudits (2 items)
+15. Dependency vulnerabilities - known CVEs in dependencies
+16. Access control completeness - all privileged operations protected
+
+## Sealevel Attacks coral-xyz (10 items)
+17. Signer Authorization
+18. Account Data Matching
+19. Owner Checks
+20. Type Cosplay
+21. Initialization - double-init protection
+22. Arbitrary CPI
+23. Bump Seed Canonicalization
+24. PDA Sharing
+25. Closing Accounts
+26. Duplicate Mutable Accounts
+
+For EACH item output EXACTLY this format:
+| {number} | {name} | {source} | PASS / WARNING / FAIL | {one line reason} |
+
+Then output a summary section:
+## Summary
+- Total checks: 26
+- PASS: {n}
+- WARNING: {n}
+- FAIL: {n}
+- Critical issues: {list or "None"}
+
+Be precise and technical. Do not skip any item.
+"""
+
+
+def main():
+    if len(sys.argv) < 2:
+        lib_path = "programs/nautilus/src/lib.rs"
+    else:
+        lib_path = sys.argv[1]
+
+    if not os.path.exists(lib_path):
+        print(f"Error: {lib_path} not found", file=sys.stderr)
+        sys.exit(1)
+
+    with open(lib_path, "r") as f:
+        code = f.read()
+
+    print(f"Running security check on {lib_path}...")
+    print(f"Code length: {len(code)} chars\n")
+
+    result = call_claude(PROMPT, code)
+
+    summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_file:
+        with open(summary_file, "a") as f:
+            f.write("# Nautilus Security Check\n\n")
+            f.write(f"**File:** `{lib_path}`\n\n")
+            f.write("## Results\n\n")
+            f.write("| # | Check | Source | Result | Notes |\n")
+            f.write("|---|-------|--------|--------|-------|\n")
+            f.write(result)
+            f.write("\n")
+    else:
+        print(result)
+
+    if "FAIL" in result:
+        print("\nSecurity check FAILED", file=sys.stderr)
+        sys.exit(1)
+    elif "WARNING" in result:
+        print("\nSecurity check passed with warnings")
+        sys.exit(0)
+    else:
+        print("\nSecurity check PASSED")
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
