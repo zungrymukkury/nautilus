@@ -115,6 +115,22 @@ pub mod nautilus {
             .ok_or(NautilusError::Overflow)?;
         let total_cost = price.checked_mul(amount).ok_or(NautilusError::Overflow)?;
 
+        // CEI: Update state before CPIs
+        state.treasury_balance = state.treasury_balance
+            .checked_add(total_cost)
+            .ok_or(NautilusError::Overflow)?;
+        state.stage_sold[stage] = state.stage_sold[stage]
+            .checked_add(amount)
+            .ok_or(NautilusError::Overflow)?;
+        state.total_sold = state.total_sold
+            .checked_add(amount)
+            .ok_or(NautilusError::Overflow)?;
+
+        if state.stage_sold[stage] >= STAGE_SUPPLY[stage] && stage < 19 {
+            state.current_stage += 1;
+            msg!("Stage advanced to {}", state.current_stage);
+        }
+
         // SOL transfer: buyer → treasury
         let cpi_context = CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
@@ -126,8 +142,8 @@ pub mod nautilus {
         system_program::transfer(cpi_context, total_cost)?;
 
         // Mint tokens to buyer
-        let state_key = state.key();
-        let mint_bump = state.mint_authority_bump;
+        let state_key = ctx.accounts.state.key();
+        let mint_bump = ctx.accounts.state.mint_authority_bump;
         let mint_seeds = &[b"nautilus".as_ref(), state_key.as_ref(), &[mint_bump]];
         let mint_signer = &[&mint_seeds[..]];
 
@@ -143,22 +159,6 @@ pub mod nautilus {
             ),
             amount,
         )?;
-
-        // Update state — checked_add for consistency with other arithmetic
-        state.treasury_balance = state.treasury_balance
-            .checked_add(total_cost)
-            .ok_or(NautilusError::Overflow)?;
-        state.stage_sold[stage] = state.stage_sold[stage]
-            .checked_add(amount)
-            .ok_or(NautilusError::Overflow)?;
-        state.total_sold = state.total_sold
-            .checked_add(amount)
-            .ok_or(NautilusError::Overflow)?;
-
-        if state.stage_sold[stage] >= STAGE_SUPPLY[stage] && stage < 19 {
-            state.current_stage += 1;
-            msg!("Stage advanced to {}", state.current_stage);
-        }
 
         msg!("Buy | stage {} | price {} | amount {} | cost {}",
             stage, price, amount, total_cost);
@@ -301,7 +301,8 @@ pub struct Initialize<'info> {
     )]
     pub metadata: UncheckedAccount<'info>,
 
-    /// CHECK: Metaplex token metadata program
+    /// CHECK: Validated against mpl_token_metadata::ID constant
+    #[account(constraint = token_metadata_program.key() == mpl_token_metadata::ID @ NautilusError::InvalidTokenMetadataProgram)]
     pub token_metadata_program: UncheckedAccount<'info>,
 
     pub token_program: Program<'info, Token>,
@@ -398,4 +399,6 @@ pub enum NautilusError {
     InsufficientTreasury,
     #[msg("Invalid metadata: name/symbol/uri too long")]
     InvalidMetadata,
+    #[msg("Invalid token metadata program")]
+    InvalidTokenMetadataProgram,
 }
