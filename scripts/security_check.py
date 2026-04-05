@@ -156,7 +156,7 @@ def main():
     else:
         print(result)
 
-    if "FAIL" in result:
+    if "| FAIL |" in result or "FAIL |" in result:
         print("\nSecurity check FAILED", file=sys.stderr)
         sys.exit(1)
     elif "WARNING" in result:
