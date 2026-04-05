@@ -56,6 +56,7 @@ IMPORTANT: This program uses the Anchor framework. When evaluating security chec
 - `Signer<'info>` enforces signature verification
 - Seeds/bump constraints enforce PDA derivation
 
+Do NOT flag mint authority risks where the mint authority is a PDA with no private key — it can only be used by the program itself.
 Do NOT flag division-by-zero risks where checked_div is already used and upstream require! guards prevent zero denominators.
 Do NOT flag issues that are already handled by Anchor's framework unless the protection is explicitly bypassed.
 
