@@ -57,6 +57,7 @@ IMPORTANT: This program uses the Anchor framework. When evaluating security chec
 - Seeds/bump constraints enforce PDA derivation
 
 Do NOT flag mint authority risks where the mint authority is a PDA with no private key — it can only be used by the program itself.
+Do NOT flag dependency version warnings if no specific CVE exists for the listed version — if the version is recent and no CVE is known, mark PASS.
 Do NOT flag division-by-zero risks where checked_div is already used and upstream require! guards prevent zero denominators.
 Do NOT flag issues that are already handled by Anchor's framework unless the protection is explicitly bypassed.
 
@@ -152,7 +153,10 @@ def main():
             f.write("## Results\n\n")
             f.write("| # | Check | Source | Result | Notes |\n")
             f.write("|---|-------|--------|--------|-------|\n")
-            f.write(result)
+            # Extract only table rows and summary, skip preamble text
+            lines = result.split("\n")
+            filtered = [l for l in lines if l.startswith("|") or l.startswith("##") or l.startswith("-") or l.startswith("*")]
+            f.write("\n".join(filtered))
             f.write("\n")
     else:
         print(result)
