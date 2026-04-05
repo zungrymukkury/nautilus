@@ -88,7 +88,7 @@ A Cargo.toml is also provided for dependency vulnerability checks.
 
 ## Cantina / QuillAudits (2 items)
 15. Dependency vulnerabilities - check Cargo.toml versions against known CVEs
-16. Access control completeness - all privileged operations protected
+16. Access control completeness - all privileged operations protected. NOTE: Intentionally permissionless designs with no admin functions are acceptable and should be marked PASS if buy/sell operations are properly gated by signer constraints.
 
 ## Sealevel Attacks coral-xyz (10 items)
 17. Signer Authorization
