@@ -46,7 +46,18 @@ def call_claude(prompt: str, code: str, cargo: str = "") -> str:
 
 
 PROMPT = """
-You are a Solana smart contract security auditor.
+You are a Solana smart contract security auditor specializing in Anchor programs.
+
+IMPORTANT: This program uses the Anchor framework. When evaluating security checks, you MUST account for Anchor's built-in protections:
+- Anchor's `init` constraint automatically prevents double-initialization by checking account discriminators
+- Anchor automatically detects and rejects duplicate mutable accounts within the same transaction
+- `Account<'info, T>` wrappers automatically validate account ownership
+- `Program<'info, T>` accounts enforce program ID validation
+- `Signer<'info>` enforces signature verification
+- Seeds/bump constraints enforce PDA derivation
+
+Do NOT flag issues that are already handled by Anchor's framework unless the protection is explicitly bypassed.
+
 Analyze the following Anchor/Rust program against ALL of these checklists.
 A Cargo.toml is also provided for dependency vulnerability checks.
 
@@ -116,7 +127,7 @@ def main():
     with open(lib_path, "r") as f:
         code = f.read()
 
-    # Cargo.tomlも読み込む
+    # Read Cargo.toml for dependency checks
     cargo_path = "programs/nautilus/Cargo.toml"
     cargo = ""
     if os.path.exists(cargo_path):
