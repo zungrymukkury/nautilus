@@ -7,3 +7,7 @@ dist/
 *.env
 .nautilus-state
 test-ledger/
+
+# Python
+__pycache__/
+*.pyc
