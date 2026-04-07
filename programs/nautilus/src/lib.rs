@@ -13,7 +13,7 @@
 //! | Sell Price        | Weighted average (treasury ÷ total_sold) |
 //! | Token Metadata    | Registered via Metaplex CPI at init      |
 //! | Admin functions   | None (on-chain)                          |
-//! | Upgrade Authority | Revoked (immutable)                      |
+//! | Upgrade Authority | Held by deployer (v0.5 beta)             |
 
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
@@ -105,9 +105,18 @@ pub mod nautilus {
         let state = &mut ctx.accounts.state;
         let stage = state.current_stage as usize;
 
-        let remaining = STAGE_SUPPLY[stage]
-            .checked_sub(state.stage_sold[stage])
-            .ok_or(NautilusError::StageSoldOut)?;
+        // Stage 0/1 (bootstrap phase): remaining is based on circulating supply (total_sold)
+        // to prevent volume bots from advancing stages via repeated buy/sell cycles.
+        // Stage 2+: standard cumulative issuance per tranche.
+        let remaining = if stage <= 1 {
+            let target = if stage == 0 { 1_000_000u64 } else { 2_000_000u64 };
+            target.checked_sub(state.total_sold)
+                .ok_or(NautilusError::StageSoldOut)?
+        } else {
+            STAGE_SUPPLY[stage]
+                .checked_sub(state.stage_sold[stage])
+                .ok_or(NautilusError::StageSoldOut)?
+        };
         require!(amount <= remaining, NautilusError::ExceedsStageSupply);
 
         let price = BASE_PRICE_LAMPORTS
@@ -126,7 +135,13 @@ pub mod nautilus {
             .checked_add(amount)
             .ok_or(NautilusError::Overflow)?;
 
-        if state.stage_sold[stage] >= STAGE_SUPPLY[stage] && stage < 19 {
+        let should_advance = if stage <= 1 {
+            let target = if stage == 0 { 1_000_000u64 } else { 2_000_000u64 };
+            state.total_sold >= target
+        } else {
+            state.stage_sold[stage] >= STAGE_SUPPLY[stage]
+        };
+        if should_advance && stage < 19 {
             state.current_stage += 1;
             msg!("Stage advanced to {}", state.current_stage);
         }

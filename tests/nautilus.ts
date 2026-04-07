@@ -342,3 +342,179 @@ describe("nautilus v0.5 stress test", () => {
     await buyChunked(100); await logState("re-buy after full sellout");
   });
 });
+
+// ============================================================
+// BOT RESISTANCE TEST: Stage 1/2 circulating supply gate
+// ============================================================
+describe("nautilus v0.5 — bootstrap phase bot resistance", () => {
+  anchor.setProvider(anchor.AnchorProvider.env());
+  const program = anchor.workspace.Nautilus as Program<Nautilus>;
+  const provider = anchor.getProvider() as anchor.AnchorProvider;
+
+  const state = Keypair.generate();
+  const mint = Keypair.generate();
+  let treasury: PublicKey;
+
+  before(async () => {
+    [treasury] = PublicKey.findProgramAddressSync(
+      [Buffer.from("treasury"), state.publicKey.toBuffer()],
+      program.programId
+    );
+
+    const metadata = getMetadataPDA(mint.publicKey);
+    await program.methods
+      .initialize("Bot Test", "BOT", "https://arweave.net/test")
+      .accounts({
+        state: state.publicKey,
+        mint: mint.publicKey,
+        authority: provider.wallet.publicKey,
+        metadata,
+        tokenMetadataProgram: MPL_TOKEN_METADATA_PROGRAM_ID,
+      })
+      .signers([state, mint])
+      .rpc();
+  });
+
+  const buyAccounts = () => ({
+    state: state.publicKey, mint: mint.publicKey, buyer: provider.wallet.publicKey,
+  });
+  const sellAccounts = () => ({
+    state: state.publicKey, mint: mint.publicKey, seller: provider.wallet.publicKey,
+  });
+
+  it("volume bot simulation: repeated buy/sell in Stage 1 does not advance stage", async () => {
+    // Simulate bot: buy 500k → sell 500k × 3 cycles
+    // Under old logic (cumulative issuance), stage_sold would reach 1,500,000 → stage advances
+    // Under new logic (circulating supply), total_sold never exceeds 500,000 → stage stays at 0
+    for (let i = 0; i < 3; i++) {
+      await program.methods.buy(new anchor.BN(500_000)).accounts(buyAccounts()).rpc();
+      await program.methods.sell(new anchor.BN(500_000)).accounts(sellAccounts()).rpc();
+    }
+
+    const s = await (program.account as any).nautilusState.fetch(state.publicKey);
+    console.log("  after 3× buy/sell cycles (500k each):");
+    console.log("  stage:", s.currentStage, "(should be 0)");
+    console.log("  total_sold:", s.totalSold.toNumber(), "(should be 0)");
+
+    if (s.currentStage !== 0) throw new Error(`Stage advanced to ${s.currentStage} — bot resistance failed`);
+    console.log("  ✓ stage did not advance despite repeated buy/sell cycling");
+  });
+
+  it("stage advances only when circulating supply reaches 1,000,000", async () => {
+    // Now buy and hold 1,000,000 → should advance to Stage 1
+    await program.methods.buy(new anchor.BN(1_000_000)).accounts(buyAccounts()).rpc();
+
+    const s = await (program.account as any).nautilusState.fetch(state.publicKey);
+    console.log("  after buying and holding 1,000,000:");
+    console.log("  stage:", s.currentStage, "(should be 1)");
+    console.log("  total_sold:", s.totalSold.toNumber());
+
+    if (s.currentStage !== 1) throw new Error(`Stage is ${s.currentStage}, expected 1`);
+    console.log("  ✓ stage advanced to 1 when circulating supply hit 1,000,000");
+  });
+
+  it("volume bot simulation: repeated buy/sell in Stage 2 does not advance stage", async () => {
+    // In Stage 2, circulating supply is currently 1,000,000
+    // Bot cycles should not push total_sold to 2,000,000
+    for (let i = 0; i < 3; i++) {
+      await program.methods.buy(new anchor.BN(500_000)).accounts(buyAccounts()).rpc();
+      await program.methods.sell(new anchor.BN(500_000)).accounts(sellAccounts()).rpc();
+    }
+
+    const s = await (program.account as any).nautilusState.fetch(state.publicKey);
+    console.log("  after 3× buy/sell cycles in Stage 2 (500k each):");
+    console.log("  stage:", s.currentStage, "(should be 1)");
+    console.log("  total_sold:", s.totalSold.toNumber(), "(should be 1,000,000)");
+
+    if (s.currentStage !== 1) throw new Error(`Stage advanced to ${s.currentStage} — bot resistance failed`);
+    console.log("  ✓ stage did not advance despite repeated buy/sell cycling");
+  });
+
+  it("stage advances to 2 only when circulating supply reaches 2,000,000", async () => {
+    // Buy another 1,000,000 → total_sold = 2,000,000 → should advance to Stage 2
+    await program.methods.buy(new anchor.BN(1_000_000)).accounts(buyAccounts()).rpc();
+
+    const s = await (program.account as any).nautilusState.fetch(state.publicKey);
+    console.log("  after buying another 1,000,000 (total held = 2,000,000):");
+    console.log("  stage:", s.currentStage, "(should be 2)");
+    console.log("  total_sold:", s.totalSold.toNumber());
+
+    if (s.currentStage !== 2) throw new Error(`Stage is ${s.currentStage}, expected 2`);
+    console.log("  ✓ stage advanced to 2 when circulating supply hit 2,000,000");
+  });
+});
+
+// ============================================================
+// STAGE_SOLD OVERFLOW SAFETY: stage_sold[0/1] exceeds 1M
+// ============================================================
+describe("nautilus v0.5 — stage_sold overflow safety", () => {
+  anchor.setProvider(anchor.AnchorProvider.env());
+  const program = anchor.workspace.Nautilus as Program<Nautilus>;
+  const provider = anchor.getProvider() as anchor.AnchorProvider;
+
+  const state = Keypair.generate();
+  const mint = Keypair.generate();
+
+  before(async () => {
+    const [treasury] = PublicKey.findProgramAddressSync(
+      [Buffer.from("treasury"), state.publicKey.toBuffer()],
+      program.programId
+    );
+    const metadata = getMetadataPDA(mint.publicKey);
+    await program.methods
+      .initialize("Overflow Test", "OVF", "https://arweave.net/test")
+      .accounts({
+        state: state.publicKey,
+        mint: mint.publicKey,
+        authority: provider.wallet.publicKey,
+        metadata,
+        tokenMetadataProgram: MPL_TOKEN_METADATA_PROGRAM_ID,
+      })
+      .signers([state, mint])
+      .rpc();
+  });
+
+  const buyAccounts = () => ({
+    state: state.publicKey, mint: mint.publicKey, buyer: provider.wallet.publicKey,
+  });
+  const sellAccounts = () => ({
+    state: state.publicKey, mint: mint.publicKey, seller: provider.wallet.publicKey,
+  });
+
+  it("stage_sold[0] exceeds 1M via buy/sell cycles — stage and remaining stay consistent", async () => {
+    // Buy 400k, sell 400k × 3 cycles: stage_sold[0] accumulates to 1,200,000 (> 1M)
+    // but total_sold (circulating) stays at 0 after each cycle
+    // Stage should NOT advance, remaining should still be calculable
+    for (let i = 0; i < 3; i++) {
+      await program.methods.buy(new anchor.BN(400_000)).accounts(buyAccounts()).rpc();
+      await program.methods.sell(new anchor.BN(400_000)).accounts(sellAccounts()).rpc();
+    }
+
+    const s = await (program.account as any).nautilusState.fetch(state.publicKey);
+    const stageSold0 = s.stageSold[0].toNumber();
+    const totalSold = s.totalSold.toNumber();
+
+    console.log("  stage_sold[0]:", stageSold0.toLocaleString(), "(cumulative minted in stage 0)");
+    console.log("  total_sold (circulating):", totalSold.toLocaleString());
+    console.log("  current_stage:", s.currentStage);
+
+    // stage_sold[0] should be > 1,000,000 (cumulative: 400k × 3 = 1,200,000)
+    if (stageSold0 <= 1_000_000) throw new Error(`stage_sold[0] = ${stageSold0}, expected > 1,000,000`);
+    console.log("  ✓ stage_sold[0] correctly exceeds 1M (cumulative issuance)");
+
+    // stage should still be 0 — circulating supply hasn't hit 1M
+    if (s.currentStage !== 0) throw new Error(`Stage advanced to ${s.currentStage} unexpectedly`);
+    console.log("  ✓ stage is still 0 — circulating supply gate holds");
+
+    // remaining buy capacity = 1_000_000 - total_sold (should be > 0)
+    const remaining = 1_000_000 - totalSold;
+    if (remaining <= 0) throw new Error(`remaining = ${remaining}, expected > 0`);
+    console.log("  ✓ remaining buy capacity:", remaining.toLocaleString(), "tokens");
+
+    // Verify we can still buy up to the remaining amount
+    await program.methods.buy(new anchor.BN(remaining)).accounts(buyAccounts()).rpc();
+    const sAfter = await (program.account as any).nautilusState.fetch(state.publicKey);
+    if (sAfter.currentStage !== 1) throw new Error(`Expected stage 1, got ${sAfter.currentStage}`);
+    console.log("  ✓ buying remaining", remaining.toLocaleString(), "tokens advanced stage to 1");
+  });
+});
