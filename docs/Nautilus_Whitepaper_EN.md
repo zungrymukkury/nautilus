@@ -142,7 +142,7 @@ When a buy occurs, SOL enters the treasury at the current stage's buy price. Thi
 
 When a sell occurs, both the treasury and circulating supply decrease. However, 0.5% of the sell amount remains in the treasury. As a result, after a valid sell, the protocol sell price does not decrease — it is pushed slightly upward.
 
-As a result, the sell price in Nautilus trends upward as buying and selling accumulate. As a result, under the protocol rules, sell price tends to build upward as buying and selling accumulate. Buy price rises in discrete steps at each stage; sell price is formed gradually through actual market activity.
+Under the protocol rules, sell price tends to build upward as buying and selling accumulate. Buy price rises in discrete steps at each stage, while sell price is formed gradually through actual market activity.
 
 ---
 
