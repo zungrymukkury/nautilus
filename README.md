@@ -1,6 +1,6 @@
 # Nautilus Protocol
 
-![Security Audit](https://github.com/zungrymukkury/nautilus/actions/workflows/security-check.yml/badge.svg)
+![Automated Security Checks](https://github.com/zungrymukkury/nautilus/actions/workflows/security-check.yml/badge.svg)
 
 > ⚠️ **This is a mainnet beta. Nautilus may break or stop working.**
 > Only participate if you can read and verify the code yourself.
@@ -23,13 +23,20 @@ Frontend: https://zungrymukkury.github.io/nautilus/
 
 ---
 
-A Fibonacci-based token launch framework for Solana.
+A Fibonacci-powered, treasury-backed token launch framework on Solana.
 
-Buy price follows the Fibonacci sequence. Sell price follows the weighted average of the treasury balance. The treasury is a program-derived address with no private key.
+Buy price follows the Fibonacci sequence. Sell price is defined as treasury_balance ÷ total_sold. The treasury is a program-derived address with no private key.
 
 ```
-Fibonacci controls supply. The market controls price. Nobody controls anything else. Just math.
+Fibonacci-powered, treasury-backed token launch framework on Solana.
+No on-chain admin. No private key. Just math.
 ```
+
+## Why Nautilus?
+
+- No on-chain admin functions
+- Treasury has no private key
+- No DEX required to exit
 
 ## How it works
 
@@ -38,7 +45,7 @@ Fibonacci controls supply. The market controls price. Nobody controls anything e
 buy_price = 0.001 SOL × FIB[stage]
 ```
 
-**Sell price** is the weighted average of all purchases:
+**Sell price** is defined as:
 ```
 sell_price = treasury_balance ÷ total_sold
 ```
@@ -49,18 +56,24 @@ sell_price = treasury_balance ÷ total_sold
 
 **Token Metadata** is registered via Metaplex CPI at initialization. Logo and metadata are permanently stored on Arweave.
 
-## Two guaranteed properties
+- Treasury is the counterparty
+- No external LP required
+- Exit is built into the protocol
+
+## Two mathematically verifiable properties
 
 **1. The treasury cannot be drained.**
-As long as at least one token remains in circulation, the treasury balance stays positive. This is a mathematical guarantee independent of market conditions.
+As long as at least one token remains in circulation, the treasury balance stays positive. This holds regardless of market conditions.
 
-**2. A floor price exists.**
-After every sell transaction (as long as at least one token remains), the floor price increases. This is a mathematical guarantee.
+**2. For valid sells, the protocol sell price does not decrease.**
+After every valid sell transaction (as long as at least one token remains in circulation and the treasury rent constraint is satisfied), the sell price is pushed upward by the 0.5% spread retained in the treasury.
 
 ## Stage table
 
-| Stage | FIB | Supply | Buy price | MC at completion |
-|-------|-----|--------|-----------|-----------------|
+*Reference values under buy-only completion (i.e. no intermediate sells). Actual treasury values may differ if sells occur during earlier stages. Assumes SOL = $100.*
+
+| Stage | FIB | Supply | Buy price | Treasury value at completion |
+|-------|-----|--------|-----------|------------------------------|
 | 1  | 1   | 1,000,000   | 0.0010 SOL | ~$100K |
 | 2  | 1   | 1,000,000   | 0.0010 SOL | ~$200K |
 | 3  | 2   | 2,000,000   | 0.0020 SOL | ~$600K |
@@ -74,15 +87,13 @@ After every sell transaction (as long as at least one token remains), the floor 
 | 11 | 89  | 89,000,000  | 0.0890 SOL | ~$1.3B |
 | 12 | 144 | 144,000,000 | 0.1440 SOL | ~$3.4B |
 
-*Assumes SOL = $100. MC = treasury balance = actual SOL locked.*
+## The buy/sell spread
 
-## The golden ratio property
+Buy price and sell price are not the same. Buy price rises in discrete steps at each stage. Sell price builds gradually through actual market activity.
 
-When both price and supply follow the Fibonacci sequence, the buy/sell ratio converges to the golden ratio φ ≈ 1.618. This is not a design choice — it emerges from two Fibonacci identities known for over 2,000 years:
-```
-Σ(FIB[i]²) = FIB[n] × FIB[n+1]
-Σ(FIB[i])  = FIB[n+2] - 1
-```
+Immediately after a new stage opens, the gap between buy and sell price is at its widest. In the extreme case where no selling has occurred in prior stages, the immediate downside of buying and selling back can approach approximately 62%. As trading accumulates within a stage, this gap narrows.
+
+See the [Whitepaper](docs/Nautilus_Whitepaper_EN.pdf) and [Monte Carlo simulations](tests/) for details.
 
 ## CLI
 
@@ -115,16 +126,16 @@ node cli/dist/index.js portfolio
 | Mint authority | PDA — no private key |
 | Token Metadata | Registered via Metaplex CPI |
 | Metadata storage | Arweave (permanent) |
-| Admin functions | None |
+| Admin functions | No on-chain admin functions |
 | Upgrade authority | Held by deployer (v0.5) |
 
 ## Security
 
-Automated audit runs on every push via GitHub Actions, checking 26 items from Trail of Bits, Neodyme, SlowMist, Zealynx, Cantina/QuillAudits, and Sealevel Attacks.
+Automated security checks run on every push via GitHub Actions, checking 26 items from Trail of Bits, Neodyme, SlowMist, Zealynx, Cantina/QuillAudits, and Sealevel Attacks.
 
-Latest result: **26/26 PASS — Critical issues: None**
+Latest result: **26/26 PASS — No critical issues flagged by the current automated checks**
 
-View full audit history: https://github.com/zungrymukkury/nautilus/actions
+View full check history: https://github.com/zungrymukkury/nautilus/actions
 
 ## Upgrade authority
 
@@ -150,10 +161,9 @@ make test-local
 
 ## Documentation
 
-- [Whitepaper (EN)](docs/Nautilus_Whitepaper_EN.pdf)
-- [Whitepaper (JP)](docs/Nautilus_Whitepaper_JP.pdf)
-- [Technical Specification v0.4 (EN)](docs/Nautilus_Spec_v0.4_EN.pdf)
-- [Technical Specification v0.4 (JP)](docs/Nautilus_Spec_v0.4_JP.pdf)
+- [Whitepaper (EN)](docs/Nautilus_Whitepaper_EN.md)
+- [Whitepaper (JP)](docs/Nautilus_Whitepaper_JP.md)
+
 
 ## Status
 
