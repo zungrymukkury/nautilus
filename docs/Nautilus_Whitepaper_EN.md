@@ -73,6 +73,13 @@ After initialization, the protocol has no admin functions. There are no instruct
 
 The protocol operates autonomously after deployment.
 
+### Bootstrap Phase
+Stage 1 and Stage 2 use a different advancement rule from later stages.
+In Stage 1 and Stage 2, a stage advances when the current circulating supply
+reaches the target — not when cumulative issuance reaches it. This means
+repeated buy/sell cycling cannot artificially advance these stages.
+Stage 3 and beyond follow standard tranche exhaustion rules.
+
 ---
 
 ## 3. Three Core Properties
