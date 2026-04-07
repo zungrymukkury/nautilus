@@ -215,6 +215,11 @@ class NautilusEngine:
         s = self.state.current_stage
         if s >= len(STAGE_SUPPLY):
             return 0
+        # Bootstrap phase (Stage 0/1): remaining based on circulating supply
+        # mirrors lib.rs v0.10 bootstrap phase bot resistance logic
+        if s <= 1:
+            target = 1_000_000 if s == 0 else 2_000_000
+            return max(0, target - self.state.total_sold)
         return STAGE_SUPPLY[s] - self.state.stage_sold[s]
 
     def is_finished(self) -> bool:
@@ -307,9 +312,13 @@ class NautilusEngine:
         self.state.stage_sold[stage_before]   += amount
         self.state.total_sold                 += amount
 
-        # ステージ進行チェック
-        if (self.state.stage_sold[stage_before] >= STAGE_SUPPLY[stage_before]
-                and stage_before < len(STAGE_SUPPLY) - 1):
+        # ステージ進行チェック — lib.rs v0.10 bootstrap phase logic
+        if stage_before <= 1:
+            _target = 1_000_000 if stage_before == 0 else 2_000_000
+            _should_advance = self.state.total_sold >= _target
+        else:
+            _should_advance = self.state.stage_sold[stage_before] >= STAGE_SUPPLY[stage_before]
+        if (_should_advance and stage_before < len(STAGE_SUPPLY) - 1):
             sp_at_advance = self.sell_price()
             self.state.current_stage += 1
             self.stats.stage_advances += 1
@@ -809,21 +818,7 @@ def print_mc(label: str, result: Dict) -> None:
 
 
 
-import sys
-import os
-sys.path.insert(0, os.path.dirname(__file__))
-
-from collections import defaultdict
-from dataclasses import dataclass, field
-import math
-import random
-from typing import Dict, List, Optional, Tuple
-
-from nautilus_mc_engine import (
-    NautilusEngine, Wallet, TxResult, TxKind,
-    preset_stage2_done, lognormal_amount, _hold,
-    SOL, human_stage, STAGE_SUPPLY,
-)
+# Engine defined above (standalone — self-import removed)
 
 
 # ============================================================
@@ -940,7 +935,7 @@ def policy_fomo_buyer(
 ) -> Optional[TxResult]:
     """
     FOMO buyer: stageが進んだ直後に買いに来る。
-    Stage 4以降にアクティブ。
+    Stage 3以降にアクティブ（stage < 2 でskip）。
     """
     stage = engine.state.current_stage
     if stage < 2:  # human Stage 3未満はスルー

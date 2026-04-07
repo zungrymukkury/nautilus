@@ -223,6 +223,11 @@ class NautilusEngine:
         s = self.state.current_stage
         if s >= len(STAGE_SUPPLY):
             return 0
+        # Bootstrap phase (Stage 0/1): remaining based on circulating supply
+        # mirrors lib.rs v0.10 bootstrap phase bot resistance logic
+        if s <= 1:
+            target = 1_000_000 if s == 0 else 2_000_000
+            return max(0, target - self.state.total_sold)
         return STAGE_SUPPLY[s] - self.state.stage_sold[s]
 
     def is_finished(self) -> bool:
@@ -315,9 +320,13 @@ class NautilusEngine:
         self.state.stage_sold[stage_before]   += amount
         self.state.total_sold                 += amount
 
-        # ステージ進行チェック
-        if (self.state.stage_sold[stage_before] >= STAGE_SUPPLY[stage_before]
-                and stage_before < len(STAGE_SUPPLY) - 1):
+        # ステージ進行チェック — lib.rs v0.10 bootstrap phase logic
+        if stage_before <= 1:
+            _target = 1_000_000 if stage_before == 0 else 2_000_000
+            _should_advance = self.state.total_sold >= _target
+        else:
+            _should_advance = self.state.stage_sold[stage_before] >= STAGE_SUPPLY[stage_before]
+        if (_should_advance and stage_before < len(STAGE_SUPPLY) - 1):
             sp_at_advance = self.sell_price()
             self.state.current_stage += 1
             self.stats.stage_advances += 1
@@ -817,21 +826,7 @@ def print_mc(label: str, result: Dict) -> None:
 
 
 
-import sys
-import os
-sys.path.insert(0, os.path.dirname(__file__))
-
-from collections import defaultdict
-from dataclasses import dataclass, field
-import math
-import random
-from typing import Dict, List, Optional, Tuple
-
-from nautilus_mc_engine import (
-    NautilusEngine, Wallet, TxResult, TxKind,
-    preset_stage2_done, lognormal_amount, _hold,
-    SOL, human_stage, STAGE_SUPPLY,
-)
+# Engine defined above (standalone — no external imports)
 
 
 # ============================================================
@@ -948,7 +943,7 @@ def policy_fomo_buyer(
 ) -> Optional[TxResult]:
     """
     FOMO buyer: stageが進んだ直後に買いに来る。
-    Stage 4以降にアクティブ。
+    Stage 3以降にアクティブ（stage < 2 でskip）。
     """
     stage = engine.state.current_stage
     if stage < 2:  # human Stage 3未満はスルー
@@ -1701,12 +1696,75 @@ def print_spread_results(label, result):
 # Main
 # ============================================================
 
+# ============================================================
+# Bootstrap phase sim — Stage 0 fresh launch
+# Verifies bot resistance: cycling does not advance Stage 1/2
+# ============================================================
+
+def run_bootstrap_sim(n_bot_cycles: int = 5, cycle_amount: int = 400_000) -> None:
+    """
+    Fresh launch sim starting from Stage 0.
+    Bot cycles buy/sell repeatedly — stage should NOT advance.
+    Then organic holders accumulate to 1M → stage advances.
+    """
+    print("=" * 65)
+    print("  Bootstrap Phase Sim — bot resistance verification")
+    print("  Bootstrap Phase Sim — bot resistance verification")
+    print(f"{'='*65}")
+
+    engine = NautilusEngine()
+    bot    = Wallet(wallet_id=0, sol=10_000 * SOL)
+    holder = Wallet(wallet_id=1, sol=10_000 * SOL)
+
+    print(f"  Initial: stage={engine.state.current_stage} total_sold={engine.state.total_sold}")
+
+    # Bot cycles: buy → sell × n_bot_cycles
+    for i in range(n_bot_cycles):
+        engine._current_actor = "bot"
+        b = engine.buy(bot, cycle_amount)
+        s = engine.sell(bot, cycle_amount)
+        spread_loss = b.cost_paid - s.payout_received
+        print(f"  Bot cycle {i+1}: buy {cycle_amount:,} → sell {cycle_amount:,}  "              f"stage={engine.state.current_stage}  "              f"total_sold={engine.state.total_sold:,}  "              f"spread_loss={spread_loss/SOL:.4f} SOL")
+
+    print(f"  After {n_bot_cycles} bot cycles: stage={engine.state.current_stage} "          f"(should be 0)  total_sold={engine.state.total_sold:,}")
+    assert engine.state.current_stage == 0, f"FAIL: stage={engine.state.current_stage}"
+    print("  ✓ stage did not advance despite bot cycling")
+
+    # Organic holder accumulates 1M → should advance to Stage 1
+    engine._current_actor = "organic"
+    engine.buy(holder, 1_000_000)
+    print(f"  After organic buy 1M: stage={engine.state.current_stage} "          f"(should be 1)  total_sold={engine.state.total_sold:,}")
+    assert engine.state.current_stage == 1, f"FAIL: stage={engine.state.current_stage}"
+    print("  ✓ stage advanced to 1 when circulating supply hit 1,000,000")
+
+    # Bot cycles again in Stage 1
+    for i in range(n_bot_cycles):
+        engine._current_actor = "bot"
+        b = engine.buy(bot, cycle_amount)
+        s = engine.sell(bot, cycle_amount)
+        print(f"  Stage1 bot cycle {i+1}: stage={engine.state.current_stage}  "              f"total_sold={engine.state.total_sold:,}")
+
+    assert engine.state.current_stage == 1, f"FAIL: stage={engine.state.current_stage}"
+    print("  ✓ stage did not advance in Stage 1 despite bot cycling")
+
+    # Organic accumulates to 2M → should advance to Stage 2
+    engine._current_actor = "organic"
+    engine.buy(holder, 1_000_000)
+    print(f"  After organic buy 1M more: stage={engine.state.current_stage} "          f"(should be 2)  total_sold={engine.state.total_sold:,}")
+    assert engine.state.current_stage == 2, f"FAIL: stage={engine.state.current_stage}"
+    print("  ✓ stage advanced to 2 when circulating supply hit 2,000,000")
+    print(f"  Bot total spread loss: {(bot.total_buy_cost - bot.total_sell_payout)/SOL:.4f} SOL")
+
+
 if __name__ == "__main__":
     # import FIB from market_sim
     print("=" * 65)
     print("Nautilus Spread Analysis")
     print("buy_price / sell_price divergence across scenarios")
     print("=" * 65)
+
+    # Bootstrap phase verification (always runs first)
+    run_bootstrap_sim(n_bot_cycles=5, cycle_amount=400_000)
 
     N_TRIALS = 200
     N_STEPS  = 30_000
