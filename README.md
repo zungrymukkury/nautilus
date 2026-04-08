@@ -163,7 +163,7 @@ make test-local
 
 - [Whitepaper (EN)](docs/Nautilus_Whitepaper_EN.md)
 - [Whitepaper (JP)](docs/Nautilus_Whitepaper_JP.md)
-
+- [Technical Specification (EN)](docs/Nautilus_Spec_EN.md)
 
 ## Status
 
