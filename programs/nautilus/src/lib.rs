@@ -1,19 +1,28 @@
-//! # Nautilus Protocol v0.5
+//! # Nautilus Protocol vNext — Recovery Floor 1/φ
 //!
-//! A Fibonacci-based fair launch framework for Solana.
+//! A recovery-floor-first token launch framework for Solana.
 //! Permissionless launchpad — anyone can launch a treasury-backed token.
+//!
+//! ## Price Design
+//!
+//! Buy price is taken from a precomputed constant table:
+//!   buy_price(stage) = PRICE_TABLE[stage]
+//!
+//! The table is generated as floor(BASE_PRICE × FIB[stage]^a), where a = log_φ(2) - 1.
+//! This yields a high-stage worst-case recovery floor of 1/φ.
+//! Stage capital doubles asymptotically (price grows as 2/φ, supply as φ, product = 2).
 //!
 //! ## Architecture
 //!
-//! | Component         | Implementation                           |
-//! |-------------------|------------------------------------------|
-//! | Treasury          | PDA — no private key exists              |
-//! | Mint Authority    | PDA — no private key exists              |
-//! | Buy Price         | Fibonacci fixed (BASE_PRICE × FIB[stage])|
-//! | Sell Price        | Weighted average (treasury ÷ total_sold) |
-//! | Token Metadata    | Registered via Metaplex CPI at init      |
-//! | Admin functions   | None (on-chain)                          |
-//! | Upgrade Authority | Held by deployer (v0.5 beta)             |
+//! | Component         | Implementation                                    |
+//! |-------------------|---------------------------------------------------|
+//! | Treasury          | PDA — no private key exists                       |
+//! | Mint Authority    | PDA — no private key exists                       |
+//! | Buy Price         | PRICE_TABLE[stage] (precomputed constant table)   |
+//! | Sell Price        | Weighted average (treasury ÷ total_sold)          |
+//! | Token Metadata    | Registered via Metaplex CPI at init               |
+//! | Admin functions   | None (on-chain)                                   |
+//! | Upgrade Authority | Held by deployer                                  |
 
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
@@ -24,9 +33,32 @@ use mpl_token_metadata::types::DataV2;
 
 declare_id!("32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev");
 
-const FIB: [u64; 20] = [
-    1, 1, 2, 3, 5, 8, 13, 21, 34, 55,
-    89, 144, 233, 377, 610, 987, 1597, 2584, 4181, 6765
+// Buy price table: PRICE_TABLE[n] = floor(BASE_PRICE * FIB[n]^a)
+// where a = log_φ(2) - 1 ≈ 0.44042009041255636
+// This sets the high-stage worst-case recovery floor to 1/φ.
+// Supply grows by φ per stage; price grows by 2/φ; product doubles asymptotically.
+// Generated offline. Monotone nondecreasing. Treat as consensus-critical constants.
+const PRICE_TABLE: [u64; 20] = [
+    1_000_000,   // stage 0  FIB=1
+    1_000_000,   // stage 1  FIB=1
+    1_356_999,   // stage 2  FIB=2
+    1_622_310,   // stage 3  FIB=3
+    2_031_610,   // stage 4  FIB=5
+    2_498_843,   // stage 5  FIB=8
+    3_094_589,   // stage 6  FIB=13
+    3_822_363,   // stage 7  FIB=21
+    4_726_004,   // stage 8  FIB=34
+    5_841_047,   // stage 9  FIB=55
+    7_220_222,   // stage 10 FIB=89
+    8_924_547,   // stage 11 FIB=144
+    11_031_412,  // stage 12 FIB=233
+    13_635_545,  // stage 13 FIB=377
+    16_854_475,  // stage 14 FIB=610
+    20_833_269,  // stage 15 FIB=987
+    25_751_340,  // stage 16 FIB=1597
+    31_830_406,  // stage 17 FIB=2584
+    39_344_546,  // stage 18 FIB=4181
+    48_632_533,  // stage 19 FIB=6765
 ];
 
 const STAGE_SUPPLY: [u64; 20] = [
@@ -36,7 +68,6 @@ const STAGE_SUPPLY: [u64; 20] = [
     987_000_000, 1_597_000_000, 2_584_000_000, 4_181_000_000, 6_765_000_000,
 ];
 
-const BASE_PRICE_LAMPORTS: u64 = 1_000_000;
 const SPREAD_BPS: u64 = 50;
 const MAX_AMOUNT_PER_TX: u64 = 1_000_000;
 
@@ -92,7 +123,7 @@ pub mod nautilus {
         .is_mutable(true)
         .invoke_signed(signer_seeds)?;
 
-        msg!("Nautilus v0.5 initialized");
+        msg!("Nautilus initialized");
         msg!("Treasury PDA: {}", ctx.accounts.treasury.key());
         msg!("Mint: {}", ctx.accounts.mint.key());
         Ok(())
@@ -119,9 +150,7 @@ pub mod nautilus {
         };
         require!(amount <= remaining, NautilusError::ExceedsStageSupply);
 
-        let price = BASE_PRICE_LAMPORTS
-            .checked_mul(FIB[stage])
-            .ok_or(NautilusError::Overflow)?;
+        let price = PRICE_TABLE[stage];
         let total_cost = price.checked_mul(amount).ok_or(NautilusError::Overflow)?;
 
         // CEI: Update state before CPIs
@@ -244,7 +273,7 @@ pub mod nautilus {
 
     pub fn get_state(ctx: Context<GetState>) -> Result<()> {
         let state = &ctx.accounts.state;
-        let buy_price = BASE_PRICE_LAMPORTS * FIB[state.current_stage as usize];
+        let buy_price = PRICE_TABLE[state.current_stage as usize];
         let sell_price = if state.total_sold == 0 { 0 } else {
             state.treasury_balance / state.total_sold
         };
@@ -355,6 +384,7 @@ pub struct Buy<'info> {
         mut,
         seeds = [b"treasury", state.key().as_ref()],
         bump = state.treasury_bump,
+        constraint = treasury.key() == state.treasury,
     )]
     pub treasury: SystemAccount<'info>,
 
@@ -385,6 +415,7 @@ pub struct Sell<'info> {
         mut,
         seeds = [b"treasury", state.key().as_ref()],
         bump = state.treasury_bump,
+        constraint = treasury.key() == state.treasury,
     )]
     pub treasury: SystemAccount<'info>,
 
