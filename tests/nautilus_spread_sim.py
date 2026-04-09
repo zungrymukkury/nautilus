@@ -62,6 +62,30 @@ STAGE_SUPPLY: List[int] = [
 ]
 
 BASE_PRICE_LAMPORTS: int = 1_000_000
+# Buy price table: PRICE_TABLE[n] = floor(BASE_PRICE * FIB[n]^a)
+# where a = log_φ(2) - 1 ≈ 0.44042. Matches lib.rs PRICE_TABLE exactly.
+PRICE_TABLE: List[int] = [
+    1_000_000,   # stage 0  FIB=1
+    1_000_000,   # stage 1  FIB=1
+    1_356_999,   # stage 2  FIB=2
+    1_622_310,   # stage 3  FIB=3
+    2_031_610,   # stage 4  FIB=5
+    2_498_843,   # stage 5  FIB=8
+    3_094_589,   # stage 6  FIB=13
+    3_822_363,   # stage 7  FIB=21
+    4_726_004,   # stage 8  FIB=34
+    5_841_047,   # stage 9  FIB=55
+    7_220_222,   # stage 10 FIB=89
+    8_924_547,   # stage 11 FIB=144
+    11_031_412,  # stage 12 FIB=233
+    13_635_545,  # stage 13 FIB=377
+    16_854_475,  # stage 14 FIB=610
+    20_833_269,  # stage 15 FIB=987
+    25_751_340,  # stage 16 FIB=1597
+    31_830_406,  # stage 17 FIB=2584
+    39_344_546,  # stage 18 FIB=4181
+    48_632_533,  # stage 19 FIB=6765
+]
 SPREAD_BPS: int = 50
 MAX_AMOUNT_PER_TX: int = 1_000_000
 DEFAULT_RENT_MINIMUM: int = 890_880
@@ -210,9 +234,9 @@ class NautilusEngine:
 
     def buy_price(self) -> int:
         s = self.state.current_stage
-        if s >= len(FIB):
+        if s >= len(PRICE_TABLE):
             return 0
-        return BASE_PRICE_LAMPORTS * FIB[s]
+        return PRICE_TABLE[s]
 
     def sell_price(self) -> int:
         if self.state.total_sold == 0:
