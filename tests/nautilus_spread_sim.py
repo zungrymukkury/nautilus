@@ -52,42 +52,55 @@ from typing import Callable, Dict, List, Optional, Tuple
 FIB: List[int] = [
     1, 1, 2, 3, 5, 8, 13, 21, 34, 55,
     89, 144, 233, 377, 610, 987, 1597, 2584, 4181, 6765,
+    10946, 17711, 28657, 46368, 75025, 121393, 196418, 317811, 514229, 832040,
 ]
 
 STAGE_SUPPLY: List[int] = [
-    1_000_000, 1_000_000, 2_000_000, 3_000_000, 5_000_000,
-    8_000_000, 13_000_000, 21_000_000, 34_000_000, 55_000_000,
-    89_000_000, 144_000_000, 233_000_000, 377_000_000, 610_000_000,
-    987_000_000, 1_597_000_000, 2_584_000_000, 4_181_000_000, 6_765_000_000,
+    10_000, 10_000, 20_000, 30_000, 50_000,
+    80_000, 130_000, 210_000, 340_000, 550_000,
+    890_000, 1_440_000, 2_330_000, 3_770_000, 6_100_000,
+    9_870_000, 15_970_000, 25_840_000, 41_810_000, 67_650_000,
+    109_460_000, 177_110_000, 286_570_000, 463_680_000, 750_250_000,
+    1_213_930_000, 1_964_180_000, 3_178_110_000, 5_142_290_000, 8_320_400_000,
 ]
 
 BASE_PRICE_LAMPORTS: int = 1_000_000
 # Buy price table: PRICE_TABLE[n] = floor(BASE_PRICE * FIB[n]^a)
 # where a = log_φ(2) - 1 ≈ 0.44042. Matches lib.rs PRICE_TABLE exactly.
 PRICE_TABLE: List[int] = [
-    1_000_000,   # stage 0  FIB=1
-    1_000_000,   # stage 1  FIB=1
-    1_356_999,   # stage 2  FIB=2
-    1_622_310,   # stage 3  FIB=3
-    2_031_610,   # stage 4  FIB=5
-    2_498_843,   # stage 5  FIB=8
-    3_094_589,   # stage 6  FIB=13
-    3_822_363,   # stage 7  FIB=21
-    4_726_004,   # stage 8  FIB=34
-    5_841_047,   # stage 9  FIB=55
-    7_220_222,   # stage 10 FIB=89
-    8_924_547,   # stage 11 FIB=144
-    11_031_412,  # stage 12 FIB=233
-    13_635_545,  # stage 13 FIB=377
-    16_854_475,  # stage 14 FIB=610
-    20_833_269,  # stage 15 FIB=987
-    25_751_340,  # stage 16 FIB=1597
-    31_830_406,  # stage 17 FIB=2584
-    39_344_546,  # stage 18 FIB=4181
-    48_632_533,  # stage 19 FIB=6765
+    1_000_000,   # stage  0  FIB=1
+    1_000_000,   # stage  1  FIB=1
+    1_356_999,   # stage  2  FIB=2
+    1_622_309,   # stage  3  FIB=3
+    2_031_610,   # stage  4  FIB=5
+    2_498_843,   # stage  5  FIB=8
+    3_094_589,   # stage  6  FIB=13
+    3_822_363,   # stage  7  FIB=21
+    4_726_003,   # stage  8  FIB=34
+    5_841_046,   # stage  9  FIB=55
+    7_220_221,   # stage 10  FIB=89
+    8_924_547,   # stage 11  FIB=144
+    11_031_412,  # stage 12  FIB=233
+    13_635_544,  # stage 13  FIB=377
+    16_854_474,  # stage 14  FIB=610
+    20_833_269,  # stage 15  FIB=987
+    25_751_340,  # stage 16  FIB=1597
+    31_830_405,  # stage 17  FIB=2584
+    39_344_546,  # stage 18  FIB=4181
+    48_632_533,  # stage 19  FIB=6765
+    60_113_117,  # stage 20  FIB=10946
+    74_303_898,  # stage 21  FIB=17711
+    91_844_670,  # stage 22  FIB=28657
+    113_526_255, # stage 23  FIB=46368
+    140_326_169, # stage 24  FIB=75025
+    173_452_684, # stage 25  FIB=121393
+    214_399_308, # stage 26  FIB=196418
+    265_012_119, # stage 27  FIB=317811
+    327_572_994, # stage 28  FIB=514229
+    404_902_488, # stage 29  FIB=832040
 ]
 SPREAD_BPS: int = 50
-MAX_AMOUNT_PER_TX: int = 1_000_000
+MAX_AMOUNT_PER_TX: int = 100_000
 DEFAULT_RENT_MINIMUM: int = 890_880
 SOL: int = 1_000_000_000
 
@@ -250,7 +263,7 @@ class NautilusEngine:
         # Bootstrap phase (Stage 0/1): remaining based on circulating supply
         # mirrors lib.rs v0.10 bootstrap phase bot resistance logic
         if s <= 1:
-            target = 1_000_000 if s == 0 else 2_000_000
+            target = STAGE_SUPPLY[0] if s == 0 else STAGE_SUPPLY[0] + STAGE_SUPPLY[1]
             return max(0, target - self.state.total_sold)
         return STAGE_SUPPLY[s] - self.state.stage_sold[s]
 
@@ -346,7 +359,7 @@ class NautilusEngine:
 
         # ステージ進行チェック — lib.rs v0.10 bootstrap phase logic
         if stage_before <= 1:
-            _target = 1_000_000 if stage_before == 0 else 2_000_000
+            _target = STAGE_SUPPLY[0] if stage_before == 0 else STAGE_SUPPLY[0] + STAGE_SUPPLY[1]
             _should_advance = self.state.total_sold >= _target
         else:
             _should_advance = self.state.stage_sold[stage_before] >= STAGE_SUPPLY[stage_before]
@@ -485,16 +498,16 @@ def preset_stage2_done(
     engine.state.current_stage            = 2
     engine.state.stage_sold[0]            = STAGE_SUPPLY[0]
     engine.state.stage_sold[1]            = STAGE_SUPPLY[1]
-    engine.state.treasury_balance         = 2_000 * SOL
-    engine.state.treasury_actual_lamports = 2_000 * SOL
-    engine.state.total_sold               = 2_000_000
+    engine.state.treasury_balance         = 20 * SOL
+    engine.state.treasury_actual_lamports = 20 * SOL
+    engine.state.total_sold               = 20_000
 
     wallets = [
         Wallet(wallet_id=i, sol=int(sol_per_wallet * rng.uniform(0.5, 1.5)))
         for i in range(n_wallets)
     ]
 
-    total_tokens = 2_000_000
+    total_tokens = 20_000
     if distribution == "uniform":
         per = total_tokens // n_wallets
         for w in wallets:
@@ -1209,9 +1222,9 @@ def run_market_sim(
     engine.state.current_stage            = 2
     engine.state.stage_sold[0]            = STAGE_SUPPLY[0]
     engine.state.stage_sold[1]            = STAGE_SUPPLY[1]
-    engine.state.treasury_balance         = 2_000 * SOL
-    engine.state.treasury_actual_lamports = 2_000 * SOL
-    engine.state.total_sold               = 2_000_000
+    engine.state.treasury_balance         = 20 * SOL
+    engine.state.treasury_actual_lamports = 20 * SOL
+    engine.state.total_sold               = 20_000
 
     wallets = make_cohort_wallets(cohort_sizes, sol_per_wallet, rng)
 
@@ -1221,7 +1234,7 @@ def run_market_sim(
     INITIAL_HOLDER_COHORTS = {"early_believer", "take_profit", "dca_holder"}
     initial_holders = [w for w in wallets if w.cohort in INITIAL_HOLDER_COHORTS]
 
-    initial_tokens = 2_000_000
+    initial_tokens = 20_000
     initial_cost_per_token = BASE_PRICE_LAMPORTS  # 0.001 SOL
 
     if initial_holders:
@@ -1550,16 +1563,16 @@ def run_spread_trial(cohort_sizes, n_steps, sol_per_wallet, seed):
     engine.state.current_stage            = 2
     engine.state.stage_sold[0]            = STAGE_SUPPLY[0]
     engine.state.stage_sold[1]            = STAGE_SUPPLY[1]
-    engine.state.treasury_balance         = 2_000 * SOL
-    engine.state.treasury_actual_lamports = 2_000 * SOL
-    engine.state.total_sold               = 2_000_000
+    engine.state.treasury_balance         = 20 * SOL
+    engine.state.treasury_actual_lamports = 20 * SOL
+    engine.state.total_sold               = 20_000
 
     wallets = make_spread_wallets(cohort_sizes, sol_per_wallet, rng)
 
     # initial token allocation (holder cohorts only)
     HOLDER_COHORTS = {"early_believer", "take_profit", "dca_holder"}
     holders = [w for w in wallets if w.cohort in HOLDER_COHORTS]
-    init_tokens = 2_000_000
+    init_tokens = 20_000
     init_price  = BASE_PRICE_LAMPORTS
     if holders:
         per = init_tokens // len(holders)
@@ -1756,10 +1769,10 @@ def run_bootstrap_sim(n_bot_cycles: int = 5, cycle_amount: int = 400_000) -> Non
 
     # Organic holder accumulates 1M → should advance to Stage 1
     engine._current_actor = "organic"
-    engine.buy(holder, 1_000_000)
-    print(f"  After organic buy 1M: stage={engine.state.current_stage} "          f"(should be 1)  total_sold={engine.state.total_sold:,}")
+    engine.buy(holder, 10_000)
+    print(f"  After organic buy 10k: stage={engine.state.current_stage} "          f"(should be 1)  total_sold={engine.state.total_sold:,}")
     assert engine.state.current_stage == 1, f"FAIL: stage={engine.state.current_stage}"
-    print("  ✓ stage advanced to 1 when circulating supply hit 1,000,000")
+    print("  ✓ stage advanced to 1 when circulating supply hit 10,000")
 
     # Bot cycles again in Stage 1
     for i in range(n_bot_cycles):
@@ -1773,10 +1786,10 @@ def run_bootstrap_sim(n_bot_cycles: int = 5, cycle_amount: int = 400_000) -> Non
 
     # Organic accumulates to 2M → should advance to Stage 2
     engine._current_actor = "organic"
-    engine.buy(holder, 1_000_000)
-    print(f"  After organic buy 1M more: stage={engine.state.current_stage} "          f"(should be 2)  total_sold={engine.state.total_sold:,}")
+    engine.buy(holder, 10_000)
+    print(f"  After organic buy 10k more: stage={engine.state.current_stage} "          f"(should be 2)  total_sold={engine.state.total_sold:,}")
     assert engine.state.current_stage == 2, f"FAIL: stage={engine.state.current_stage}"
-    print("  ✓ stage advanced to 2 when circulating supply hit 2,000,000")
+    print("  ✓ stage advanced to 2 when circulating supply hit 20,000")
     print(f"  Bot total spread loss: {(bot.total_buy_cost - bot.total_sell_payout)/SOL:.4f} SOL")
 
 

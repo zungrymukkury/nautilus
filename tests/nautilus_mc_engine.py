@@ -44,42 +44,56 @@ from typing import Callable, Dict, List, Optional, Tuple
 FIB: List[int] = [
     1, 1, 2, 3, 5, 8, 13, 21, 34, 55,
     89, 144, 233, 377, 610, 987, 1597, 2584, 4181, 6765,
+    10946, 17711, 28657, 46368, 75025, 121393, 196418, 317811, 514229, 832040,
 ]
 
+# Stage supply: FIB[n] × 10_000 (1/100 of original)
 STAGE_SUPPLY: List[int] = [
-    1_000_000, 1_000_000, 2_000_000, 3_000_000, 5_000_000,
-    8_000_000, 13_000_000, 21_000_000, 34_000_000, 55_000_000,
-    89_000_000, 144_000_000, 233_000_000, 377_000_000, 610_000_000,
-    987_000_000, 1_597_000_000, 2_584_000_000, 4_181_000_000, 6_765_000_000,
+    10_000, 10_000, 20_000, 30_000, 50_000,
+    80_000, 130_000, 210_000, 340_000, 550_000,
+    890_000, 1_440_000, 2_330_000, 3_770_000, 6_100_000,
+    9_870_000, 15_970_000, 25_840_000, 41_810_000, 67_650_000,
+    109_460_000, 177_110_000, 286_570_000, 463_680_000, 750_250_000,
+    1_213_930_000, 1_964_180_000, 3_178_110_000, 5_142_290_000, 8_320_400_000,
 ]
 
 BASE_PRICE_LAMPORTS: int = 1_000_000
 # Buy price table: PRICE_TABLE[n] = floor(BASE_PRICE * FIB[n]^a)
 # where a = log_φ(2) - 1 ≈ 0.44042. Matches lib.rs PRICE_TABLE exactly.
 PRICE_TABLE: List[int] = [
-    1_000_000,   # stage 0  FIB=1
-    1_000_000,   # stage 1  FIB=1
-    1_356_999,   # stage 2  FIB=2
-    1_622_310,   # stage 3  FIB=3
-    2_031_610,   # stage 4  FIB=5
-    2_498_843,   # stage 5  FIB=8
-    3_094_589,   # stage 6  FIB=13
-    3_822_363,   # stage 7  FIB=21
-    4_726_004,   # stage 8  FIB=34
-    5_841_047,   # stage 9  FIB=55
-    7_220_222,   # stage 10 FIB=89
-    8_924_547,   # stage 11 FIB=144
-    11_031_412,  # stage 12 FIB=233
-    13_635_545,  # stage 13 FIB=377
-    16_854_475,  # stage 14 FIB=610
-    20_833_269,  # stage 15 FIB=987
-    25_751_340,  # stage 16 FIB=1597
-    31_830_406,  # stage 17 FIB=2584
-    39_344_546,  # stage 18 FIB=4181
-    48_632_533,  # stage 19 FIB=6765
+    1_000_000,   # stage  0  FIB=1
+    1_000_000,   # stage  1  FIB=1
+    1_356_999,   # stage  2  FIB=2
+    1_622_309,   # stage  3  FIB=3
+    2_031_610,   # stage  4  FIB=5
+    2_498_843,   # stage  5  FIB=8
+    3_094_589,   # stage  6  FIB=13
+    3_822_363,   # stage  7  FIB=21
+    4_726_003,   # stage  8  FIB=34
+    5_841_046,   # stage  9  FIB=55
+    7_220_221,   # stage 10  FIB=89
+    8_924_547,   # stage 11  FIB=144
+    11_031_412,  # stage 12  FIB=233
+    13_635_544,  # stage 13  FIB=377
+    16_854_474,  # stage 14  FIB=610
+    20_833_269,  # stage 15  FIB=987
+    25_751_340,  # stage 16  FIB=1597
+    31_830_405,  # stage 17  FIB=2584
+    39_344_546,  # stage 18  FIB=4181
+    48_632_533,  # stage 19  FIB=6765
+    60_113_117,  # stage 20  FIB=10946
+    74_303_898,  # stage 21  FIB=17711
+    91_844_670,  # stage 22  FIB=28657
+    113_526_255, # stage 23  FIB=46368
+    140_326_169, # stage 24  FIB=75025
+    173_452_684, # stage 25  FIB=121393
+    214_399_308, # stage 26  FIB=196418
+    265_012_119, # stage 27  FIB=317811
+    327_572_994, # stage 28  FIB=514229
+    404_902_488, # stage 29  FIB=832040
 ]
 SPREAD_BPS: int = 50
-MAX_AMOUNT_PER_TX: int = 1_000_000
+MAX_AMOUNT_PER_TX: int = 100_000
 DEFAULT_RENT_MINIMUM: int = 890_880
 SOL: int = 1_000_000_000
 
@@ -242,7 +256,7 @@ class NautilusEngine:
         # Bootstrap phase (Stage 0/1): remaining based on circulating supply
         # mirrors lib.rs v0.10 bootstrap phase bot resistance logic
         if s <= 1:
-            target = 1_000_000 if s == 0 else 2_000_000
+            target = STAGE_SUPPLY[0] if s == 0 else STAGE_SUPPLY[0] + STAGE_SUPPLY[1]
             return max(0, target - self.state.total_sold)
         return STAGE_SUPPLY[s] - self.state.stage_sold[s]
 
@@ -338,7 +352,7 @@ class NautilusEngine:
 
         # ステージ進行チェック — lib.rs v0.10 bootstrap phase logic
         if stage_before <= 1:
-            _target = 1_000_000 if stage_before == 0 else 2_000_000
+            _target = STAGE_SUPPLY[0] if stage_before == 0 else STAGE_SUPPLY[0] + STAGE_SUPPLY[1]
             _should_advance = self.state.total_sold >= _target
         else:
             _should_advance = self.state.stage_sold[stage_before] >= STAGE_SUPPLY[stage_before]
@@ -467,8 +481,8 @@ def preset_stage2_done(
 ) -> Tuple[NautilusEngine, List[Wallet]]:
     """
     Stage 1-2消化済みの初期状態（human Stage 1,2 = idx 0,1 Done.）
-    2M枚をウォレットに配布（ghost supplyなし）
-    treasury = 2000 SOL、current_stage = 2（human Stage 3に居る）
+    20k枚をウォレットに配布（ghost supplyなし）
+    treasury = 20 SOL、current_stage = 2（human Stage 3に居る）
     """
     if rng is None:
         rng = random.Random(42)
@@ -477,16 +491,16 @@ def preset_stage2_done(
     engine.state.current_stage            = 2
     engine.state.stage_sold[0]            = STAGE_SUPPLY[0]
     engine.state.stage_sold[1]            = STAGE_SUPPLY[1]
-    engine.state.treasury_balance         = 2_000 * SOL
-    engine.state.treasury_actual_lamports = 2_000 * SOL
-    engine.state.total_sold               = 2_000_000
+    engine.state.treasury_balance         = 20 * SOL
+    engine.state.treasury_actual_lamports = 20 * SOL
+    engine.state.total_sold               = 20_000
 
     wallets = [
         Wallet(wallet_id=i, sol=int(sol_per_wallet * rng.uniform(0.5, 1.5)))
         for i in range(n_wallets)
     ]
 
-    total_tokens = 2_000_000
+    total_tokens = 20_000
     if distribution == "uniform":
         per = total_tokens // n_wallets
         for w in wallets:
@@ -538,7 +552,7 @@ def organic_policy(
     engine: NautilusEngine,
     wallet: Wallet,
     buy_prob: float = 0.55,
-    mean_tokens: int = 20_000,
+    mean_tokens: int = 2_000,
     clamp_to_remaining: bool = True,
 ) -> TxResult:
     """
@@ -568,7 +582,7 @@ def bot_policy(
     rng: random.Random,
     engine: NautilusEngine,
     wallet: Wallet,
-    mean_tokens: int = 10_000,
+    mean_tokens: int = 1_000,
     clamp_to_remaining: bool = True,
 ) -> Tuple[TxResult, TxResult]:
     """cyclic bot: buy→sell即往復"""
@@ -595,7 +609,7 @@ def whale_policy(
     wallet: Wallet,
     exit_prob: float = 0.2,
     max_chunks: int = 20,
-    mean_tokens: int = 200_000,
+    mean_tokens: int = 20_000,
     clamp_to_remaining: bool = True,
 ) -> List[TxResult]:
     """whale: 大量buy、たまにexit"""
@@ -877,6 +891,17 @@ class CohortWallet(Wallet):
             return 0.0
         return self.net_pnl(sell_price) / initial_wealth * 100
 
+    def token_roi_pct(self, sell_price: int) -> float:
+        """トークンに投じた累計資本に対するROI。
+        invested = 初期配布コスト + 累計buy cost
+        return   = 累計sell回収 + 現在保有時価
+        """
+        invested = self.initial_token_cost_basis + self.total_buy_cost
+        if invested == 0:
+            return 0.0
+        final_token_value = self.total_sell_payout + (self.tokens * sell_price)
+        return (final_token_value - invested) / invested * 100
+
 
 def make_cohort_wallets(
     cohort_sizes: Dict[str, int],
@@ -921,7 +946,7 @@ def policy_early_believer(
     engine: NautilusEngine,
     wallet: CohortWallet,
     step: int,
-    mean_tokens: int = 50_000,
+    mean_tokens: int = 5_000,
 ) -> Optional[TxResult]:
     """
     早期参入者: Stage 3-4の間に積極的にbuy、以後はHODL。
@@ -955,7 +980,7 @@ def policy_fomo_buyer(
     engine: NautilusEngine,
     wallet: CohortWallet,
     step: int,
-    mean_tokens: int = 30_000,
+    mean_tokens: int = 3_000,
 ) -> Optional[TxResult]:
     """
     FOMO buyer: stageが進んだ直後に買いに来る。
@@ -993,7 +1018,7 @@ def policy_dip_buyer(
     engine: NautilusEngine,
     wallet: CohortWallet,
     step: int,
-    mean_tokens: int = 30_000,
+    mean_tokens: int = 3_000,
     threshold: float = 0.60,  # sell_price / buy_price がこれ以上の時に買う（緩い閾値）
 ) -> Optional[TxResult]:
     """
@@ -1075,7 +1100,7 @@ def policy_take_profit(
     engine: NautilusEngine,
     wallet: CohortWallet,
     step: int,
-    mean_tokens: int = 30_000,
+    mean_tokens: int = 3_000,
     profit_target: float = 1.5,  # 1.5倍で分割利確
 ) -> Optional[TxResult]:
     """
@@ -1114,7 +1139,7 @@ def policy_dca_holder(
     engine: NautilusEngine,
     wallet: CohortWallet,
     step: int,
-    mean_tokens: int = 10_000,
+    mean_tokens: int = 1_000,
     buy_interval: int = 50,  # 50ステップごとに買う
 ) -> Optional[TxResult]:
     """
@@ -1201,19 +1226,19 @@ def run_market_sim(
     engine.state.current_stage            = 2
     engine.state.stage_sold[0]            = STAGE_SUPPLY[0]
     engine.state.stage_sold[1]            = STAGE_SUPPLY[1]
-    engine.state.treasury_balance         = 2_000 * SOL
-    engine.state.treasury_actual_lamports = 2_000 * SOL
-    engine.state.total_sold               = 2_000_000
+    engine.state.treasury_balance         = 20 * SOL
+    engine.state.treasury_actual_lamports = 20 * SOL
+    engine.state.total_sold               = 20_000
 
     wallets = make_cohort_wallets(cohort_sizes, sol_per_wallet, rng)
 
     # Distribute initial tokens to holder cohorts only.
     # early_believer / take_profit / dca_holder receive initial token allocation.
     # fomo_buyer / late_chaser / dip_buyer / panic_seller start with 0 tokens.
-    INITIAL_HOLDER_COHORTS = {"early_believer", "take_profit", "dca_holder"}
+    INITIAL_HOLDER_COHORTS = {"early_believer"}  # only early believers get initial token allocation
     initial_holders = [w for w in wallets if w.cohort in INITIAL_HOLDER_COHORTS]
 
-    initial_tokens = 2_000_000
+    initial_tokens = 20_000
     initial_cost_per_token = BASE_PRICE_LAMPORTS  # 0.001 SOL
 
     if initial_holders:
@@ -1288,7 +1313,7 @@ def print_market_results(
     # cohort別集計
     cohort_stats: Dict[str, Dict] = defaultdict(lambda: {
         "n": 0, "realized": 0, "mtm": 0, "tokens": 0,
-        "net_pnl": 0, "net_pnl_pct": 0.0,
+        "net_pnl": 0, "net_pnl_pct": 0.0, "token_roi_pct": 0.0,
         "wins": 0, "losses": 0, "holding_steps": 0,
         "entry_stages": [], "exit_stages": [],
     })
@@ -1299,12 +1324,14 @@ def print_market_results(
         mtm      = w.mark_to_market(sp)
         net      = w.net_pnl(sp)
         net_pct  = w.net_pnl_pct(sp)
+        tok_roi  = w.token_roi_pct(sp)
         cs["n"]            += 1
         cs["realized"]     += realized
         cs["mtm"]          += mtm
         cs["tokens"]       += w.tokens
         cs["net_pnl"]      += net
         cs["net_pnl_pct"]  += net_pct
+        cs["token_roi_pct"] += tok_roi
         cs["holding_steps"] += w.holding_steps
         cs["entry_stages"].extend(w.entry_stages)
         cs["exit_stages"].extend(w.exit_stages)
@@ -1314,9 +1341,9 @@ def print_market_results(
             cs["losses"] += 1
 
     print(f"\n  Cohort P&L Summary (vs initial wealth):")
-    print(f"  {'cohort':>16}  {'n':>5}  {'avg net P&L':>13}  {'net P&L%':>9}  "
+    print(f"  {'cohort':>16}  {'n':>5}  {'avg net P&L':>13}  {'net P&L%':>9}  {'token ROI%':>11}  "
           f"{'avg realized':>12}  {'avg MTM':>12}  {'avg entry':>10}")
-    print(f"  {'-'*92}")
+    print(f"  {'-'*105}")
 
     for cohort, cs in sorted(cohort_stats.items()):
         n = cs["n"]
@@ -1324,6 +1351,7 @@ def print_market_results(
             continue
         avg_net_pnl  = cs["net_pnl"] / n / SOL
         avg_net_pct  = cs["net_pnl_pct"] / n
+        avg_tok_roi  = cs["token_roi_pct"] / n
         avg_realized = cs["realized"] / n / SOL
         avg_mtm      = cs["mtm"] / n / SOL
         avg_tokens   = cs["tokens"] / n
@@ -1331,7 +1359,7 @@ def print_market_results(
                         if cs["entry_stages"] else 0)
         avg_entry_h  = human_stage(int(avg_entry)) if cs["entry_stages"] else "-"
         print(f"  {cohort:>16}  {n:>5}  {avg_net_pnl:>+11.2f} SOL  "
-              f"  {avg_net_pct:>+7.1f}%  {avg_realized:>+10.2f} SOL  "
+              f"  {avg_net_pct:>+7.1f}%  {avg_tok_roi:>+9.0f}%  {avg_realized:>+10.2f} SOL  "
               f"  {avg_mtm:>10.2f} SOL  Stage {avg_entry_h}")
 
     # entry stage別の収支
@@ -1430,6 +1458,7 @@ def run_market_mc(
 
     cohort_net_pnl:  Dict[str, List[float]] = defaultdict(list)
     cohort_net_pct:  Dict[str, List[float]] = defaultdict(list)
+    cohort_tok_roi:  Dict[str, List[float]] = defaultdict(list)
     final_stages:    List[int]              = []
     all_spreads:     List[float]            = []
 
@@ -1447,19 +1476,22 @@ def run_market_mc(
         all_spreads.append(engine.stats.total_spread_sol / SOL)
 
         # cohort別にnet P&Lを集計
-        cohort_totals: Dict[str, Dict] = defaultdict(lambda: {"net": 0, "pct": 0.0, "n": 0})
+        cohort_totals: Dict[str, Dict] = defaultdict(lambda: {"net": 0, "pct": 0.0, "tok_roi": 0.0, "n": 0})
         for w in wallets:
-            net = w.net_pnl(sp)
-            pct = w.net_pnl_pct(sp)
-            cohort_totals[w.cohort]["net"] += net
-            cohort_totals[w.cohort]["pct"] += pct
-            cohort_totals[w.cohort]["n"]   += 1
+            net     = w.net_pnl(sp)
+            pct     = w.net_pnl_pct(sp)
+            tok_roi = w.token_roi_pct(sp)
+            cohort_totals[w.cohort]["net"]     += net
+            cohort_totals[w.cohort]["pct"]     += pct
+            cohort_totals[w.cohort]["tok_roi"] += tok_roi
+            cohort_totals[w.cohort]["n"]       += 1
 
         for cohort, data in cohort_totals.items():
             n = data["n"]
             if n > 0:
                 cohort_net_pnl[cohort].append(data["net"] / n / SOL)
                 cohort_net_pct[cohort].append(data["pct"] / n)
+                cohort_tok_roi[cohort].append(data["tok_roi"] / n)
 
     return {
         "scenario_key":   scenario_key,
@@ -1468,6 +1500,7 @@ def run_market_mc(
         "all_spreads":    all_spreads,
         "cohort_net_pnl": dict(cohort_net_pnl),
         "cohort_net_pct": dict(cohort_net_pct),
+        "cohort_tok_roi": dict(cohort_tok_roi),
     }
 
 
@@ -1478,6 +1511,7 @@ def print_mc_results(result: Dict) -> None:
     spreads   = result["all_spreads"]
     pnl_data  = result["cohort_net_pnl"]
     pct_data  = result["cohort_net_pct"]
+    roi_data  = result.get("cohort_tok_roi", {})
 
     dist = Counter(stages)
 
@@ -1492,17 +1526,19 @@ def print_mc_results(result: Dict) -> None:
         print(f"    Stage {human_stage(idx_s):>2}: {pct:>5.1f}%  {bar}")
 
     print(f"\n  Cohort net P&L（{n}-trial average）:")
-    print(f"  {'cohort':>16}  {'avg net/wallet':>13}  {'avg net%':>9}  {'win%':>6}  {'min':>10}  {'max':>10}")
-    print(f"  {'-'*72}")
+    print(f"  {'cohort':>16}  {'avg net/wallet':>13}  {'avg net%':>9}  {'token ROI%':>11}  {'win%':>6}  {'min':>10}  {'max':>10}")
+    print(f"  {'-'*85}")
 
     for cohort in sorted(pnl_data.keys()):
         vals = pnl_data[cohort]
         pcts = pct_data[cohort]
-        avg_pnl = sum(vals) / len(vals)
-        avg_pct = sum(pcts) / len(pcts)
+        rois = roi_data.get(cohort, [])
+        avg_pnl  = sum(vals) / len(vals)
+        avg_pct  = sum(pcts) / len(pcts)
+        avg_roi  = sum(rois) / len(rois) if rois else 0.0
         win_rate = sum(1 for v in vals if v > 0) / len(vals) * 100
         print(f"  {cohort:>16}  {avg_pnl:>+11.2f} SOL  "
-              f"  {avg_pct:>+7.1f}%  {win_rate:>5.1f}%  "
+              f"  {avg_pct:>+7.1f}%  {avg_roi:>+9.0f}%  {win_rate:>5.1f}%  "
               f"  {min(vals):>+8.1f}  {max(vals):>+8.1f}")
 
 

@@ -3,14 +3,16 @@ import { Program } from "@coral-xyz/anchor";
 import { Nautilus } from "../target/types/nautilus";
 import { Keypair, PublicKey } from "@solana/web3.js";
 
-const MAX_PER_TX = 1_000_000;
+const MAX_PER_TX = 100_000;
 // Price table: PRICE_TABLE[n] = floor(BASE_PRICE * FIB[n]^a), a = log_φ(2)-1
 // Mirrors PRICE_TABLE in lib.rs exactly.
 const PRICE_TABLE = [
-  1_000_000, 1_000_000, 1_356_999, 1_622_310, 2_031_610,
-  2_498_843, 3_094_589, 3_822_363, 4_726_004, 5_841_047,
-  7_220_222, 8_924_547, 11_031_412, 13_635_545, 16_854_475,
-  20_833_269, 25_751_340, 31_830_406, 39_344_546, 48_632_533,
+  1_000_000,   1_000_000,   1_356_999,   1_622_309,   2_031_610,
+  2_498_843,   3_094_589,   3_822_363,   4_726_003,   5_841_046,
+  7_220_221,   8_924_547,  11_031_412,  13_635_544,  16_854_474,
+ 20_833_269,  25_751_340,  31_830_405,  39_344_546,  48_632_533,
+ 60_113_117,  74_303_898,  91_844_670, 113_526_255, 140_326_169,
+173_452_684, 214_399_308, 265_012_119, 327_572_994, 404_902_488,
 ];
 const MPL_TOKEN_METADATA_PROGRAM_ID = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 
@@ -54,6 +56,7 @@ describe("nautilus vNext — fresh state first-buy regression", () => {
 
     await program.methods
       .initialize("Test Token", "TEST", "https://arweave.net/test")
+      // @ts-ignore — metadata and tokenMetadataProgram are valid accounts per IDL
       .accounts({
         state: state.publicKey,
         mint: mint.publicKey,
@@ -125,6 +128,7 @@ describe("nautilus vNext — accounted treasury regression", () => {
 
     await program.methods
       .initialize("Test Token", "TEST", "https://arweave.net/test")
+      // @ts-ignore — metadata and tokenMetadataProgram are valid accounts per IDL
       .accounts({
         state: state.publicKey,
         mint: mint.publicKey,
@@ -136,7 +140,7 @@ describe("nautilus vNext — accounted treasury regression", () => {
       .rpc();
 
     await program.methods
-      .buy(new anchor.BN(MAX_PER_TX))
+      .buy(new anchor.BN(10_000))
       .accounts({ state: state.publicKey, mint: mint.publicKey, buyer: provider.wallet.publicKey })
       .rpc();
   });
@@ -218,6 +222,7 @@ describe("nautilus vNext — price table verification", () => {
     const metadata = getMetadataPDA(mint.publicKey);
     await program.methods
       .initialize("Price Test", "PRC", "https://arweave.net/test")
+      // @ts-ignore — metadata and tokenMetadataProgram are valid accounts per IDL
       .accounts({
         state: state.publicKey,
         mint: mint.publicKey,
@@ -247,9 +252,9 @@ describe("nautilus vNext — price table verification", () => {
   it("stage 2 buy price matches PRICE_TABLE[2] (1_356_999)", async () => {
     // Advance to stage 2: buy 1M - 1 more tokens to complete stage 0, then 1M for stage 1
     const s0 = await (program.account as any).nautilusState.fetch(state.publicKey);
-    const rem0 = 1_000_000 - s0.stageSold[0].toNumber();
+    const rem0 = 10_000 - s0.stageSold[0].toNumber();
     if (rem0 > 0) await program.methods.buy(new anchor.BN(rem0)).accounts(buyAccounts()).rpc();
-    await program.methods.buy(new anchor.BN(1_000_000)).accounts(buyAccounts()).rpc();
+    await program.methods.buy(new anchor.BN(10_000)).accounts(buyAccounts()).rpc();
     // Now at stage 2
     const sBefore = await (program.account as any).nautilusState.fetch(state.publicKey);
     if (sBefore.currentStage !== 2) throw new Error(`Expected stage 2, got ${sBefore.currentStage}`);
@@ -311,7 +316,7 @@ describe("nautilus vNext — stress test", () => {
     const s = await (program.account as any).nautilusState.fetch(state.publicKey);
     const tb = s.treasuryBalance.toNumber();
     const ts = s.totalSold.toNumber();
-    const buyPrice = PRICE_TABLE[Math.min(s.currentStage, 19)];
+    const buyPrice = PRICE_TABLE[Math.min(s.currentStage, 29)];
     const sellPrice = ts === 0 ? 0 : tb / ts;
     console.log(`[${label}]`, `stage: ${s.currentStage}`, `| sold: ${ts.toLocaleString()}`,
       `| treasury: ${(tb / 1e9).toFixed(4)} SOL`, `| buy: ${buyPrice.toLocaleString()} lam`,
@@ -323,6 +328,7 @@ describe("nautilus vNext — stress test", () => {
     const metadata = getMetadataPDA(mint.publicKey);
     await program.methods
       .initialize("Nautilus", "NAUT", "https://arweave.net/test")
+      // @ts-ignore — metadata and tokenMetadataProgram are valid accounts per IDL
       .accounts({
         state: state.publicKey,
         mint: mint.publicKey,
@@ -336,19 +342,19 @@ describe("nautilus vNext — stress test", () => {
   });
 
   it("sell out stage 1 → advance to stage 2", async () => {
-    await buyChunked(1_000_000); await logState("stage 1 sold out");
+    await buyChunked(10_000); await logState("stage 1 sold out");
   });
   it("sell out stage 2 → advance to stage 3", async () => {
-    await buyChunked(1_000_000); await logState("stage 2 sold out");
+    await buyChunked(10_000); await logState("stage 2 sold out");
   });
   it("sell out stage 3 → advance to stage 4", async () => {
-    await buyChunked(2_000_000); await logState("stage 3 sold out");
+    await buyChunked(20_000); await logState("stage 3 sold out");
   });
   it("sell out stage 4 → advance to stage 5", async () => {
-    await buyChunked(3_000_000); await logState("stage 4 sold out");
+    await buyChunked(30_000); await logState("stage 4 sold out");
   });
   it("sell out stage 5 → advance to stage 6", async () => {
-    await buyChunked(5_000_000); await logState("stage 5 sold out");
+    await buyChunked(50_000); await logState("stage 5 sold out");
   });
 
   it("panic sell: dump 50% of holdings at once", async () => {
@@ -368,7 +374,7 @@ describe("nautilus vNext — stress test", () => {
 
   it("buy back: stage does not decrease", async () => {
     const before = await (program.account as any).nautilusState.fetch(state.publicKey);
-    await buyChunked(1_000_000);
+    await buyChunked(10_000);
     const after = await (program.account as any).nautilusState.fetch(state.publicKey);
     await logState("after buyback");
     console.log("  stage:", before.currentStage, "→", after.currentStage, "(should not decrease)");
@@ -431,6 +437,7 @@ describe("nautilus vNext — bootstrap phase bot resistance", () => {
     const metadata = getMetadataPDA(mint.publicKey);
     await program.methods
       .initialize("Bot Test", "BOT", "https://arweave.net/test")
+      // @ts-ignore — metadata and tokenMetadataProgram are valid accounts per IDL
       .accounts({
         state: state.publicKey,
         mint: mint.publicKey,
@@ -454,8 +461,8 @@ describe("nautilus vNext — bootstrap phase bot resistance", () => {
     // Under old logic (cumulative issuance), stage_sold would reach 1,500,000 → stage advances
     // Under new logic (circulating supply), total_sold never exceeds 500,000 → stage stays at 0
     for (let i = 0; i < 3; i++) {
-      await program.methods.buy(new anchor.BN(500_000)).accounts(buyAccounts()).rpc();
-      await program.methods.sell(new anchor.BN(500_000)).accounts(sellAccounts()).rpc();
+      await program.methods.buy(new anchor.BN(5_000)).accounts(buyAccounts()).rpc();
+      await program.methods.sell(new anchor.BN(5_000)).accounts(sellAccounts()).rpc();
     }
 
     const s = await (program.account as any).nautilusState.fetch(state.publicKey);
@@ -469,7 +476,7 @@ describe("nautilus vNext — bootstrap phase bot resistance", () => {
 
   it("stage advances only when circulating supply reaches 1,000,000", async () => {
     // Now buy and hold 1,000,000 → should advance to Stage 1
-    await program.methods.buy(new anchor.BN(1_000_000)).accounts(buyAccounts()).rpc();
+    await program.methods.buy(new anchor.BN(10_000)).accounts(buyAccounts()).rpc();
 
     const s = await (program.account as any).nautilusState.fetch(state.publicKey);
     console.log("  after buying and holding 1,000,000:");
@@ -484,14 +491,14 @@ describe("nautilus vNext — bootstrap phase bot resistance", () => {
     // In Stage 2, circulating supply is currently 1,000,000
     // Bot cycles should not push total_sold to 2,000,000
     for (let i = 0; i < 3; i++) {
-      await program.methods.buy(new anchor.BN(500_000)).accounts(buyAccounts()).rpc();
-      await program.methods.sell(new anchor.BN(500_000)).accounts(sellAccounts()).rpc();
+      await program.methods.buy(new anchor.BN(5_000)).accounts(buyAccounts()).rpc();
+      await program.methods.sell(new anchor.BN(5_000)).accounts(sellAccounts()).rpc();
     }
 
     const s = await (program.account as any).nautilusState.fetch(state.publicKey);
     console.log("  after 3× buy/sell cycles in Stage 2 (500k each):");
     console.log("  stage:", s.currentStage, "(should be 1)");
-    console.log("  total_sold:", s.totalSold.toNumber(), "(should be 1,000,000)");
+    console.log("  total_sold:", s.totalSold.toNumber(), "(should be 10,000)");
 
     if (s.currentStage !== 1) throw new Error(`Stage advanced to ${s.currentStage} — bot resistance failed`);
     console.log("  ✓ stage did not advance despite repeated buy/sell cycling");
@@ -499,10 +506,10 @@ describe("nautilus vNext — bootstrap phase bot resistance", () => {
 
   it("stage advances to 2 only when circulating supply reaches 2,000,000", async () => {
     // Buy another 1,000,000 → total_sold = 2,000,000 → should advance to Stage 2
-    await program.methods.buy(new anchor.BN(1_000_000)).accounts(buyAccounts()).rpc();
+    await program.methods.buy(new anchor.BN(10_000)).accounts(buyAccounts()).rpc();
 
     const s = await (program.account as any).nautilusState.fetch(state.publicKey);
-    console.log("  after buying another 1,000,000 (total held = 2,000,000):");
+    console.log("  after buying another 1,000,000 (total held = 20,000):");
     console.log("  stage:", s.currentStage, "(should be 2)");
     console.log("  total_sold:", s.totalSold.toNumber());
 
@@ -530,6 +537,7 @@ describe("nautilus vNext — stage_sold overflow safety", () => {
     const metadata = getMetadataPDA(mint.publicKey);
     await program.methods
       .initialize("Overflow Test", "OVF", "https://arweave.net/test")
+      // @ts-ignore — metadata and tokenMetadataProgram are valid accounts per IDL
       .accounts({
         state: state.publicKey,
         mint: mint.publicKey,
@@ -549,12 +557,12 @@ describe("nautilus vNext — stage_sold overflow safety", () => {
   });
 
   it("stage_sold[0] exceeds 1M via buy/sell cycles — stage and remaining stay consistent", async () => {
-    // Buy 400k, sell 400k × 3 cycles: stage_sold[0] accumulates to 1,200,000 (> 1M)
+    // Buy 4k, sell 4k × 3 cycles: stage_sold[0] accumulates to 12,000 (> 10k S1 supply)
     // but total_sold (circulating) stays at 0 after each cycle
     // Stage should NOT advance, remaining should still be calculable
     for (let i = 0; i < 3; i++) {
-      await program.methods.buy(new anchor.BN(400_000)).accounts(buyAccounts()).rpc();
-      await program.methods.sell(new anchor.BN(400_000)).accounts(sellAccounts()).rpc();
+      await program.methods.buy(new anchor.BN(4_000)).accounts(buyAccounts()).rpc();
+      await program.methods.sell(new anchor.BN(4_000)).accounts(sellAccounts()).rpc();
     }
 
     const s = await (program.account as any).nautilusState.fetch(state.publicKey);
@@ -566,15 +574,15 @@ describe("nautilus vNext — stage_sold overflow safety", () => {
     console.log("  current_stage:", s.currentStage);
 
     // stage_sold[0] should be > 1,000,000 (cumulative: 400k × 3 = 1,200,000)
-    if (stageSold0 <= 1_000_000) throw new Error(`stage_sold[0] = ${stageSold0}, expected > 1,000,000`);
-    console.log("  ✓ stage_sold[0] correctly exceeds 1M (cumulative issuance)");
+    if (stageSold0 <= 10_000) throw new Error(`stage_sold[0] = ${stageSold0}, expected > 10,000`);
+    console.log("  ✓ stage_sold[0] correctly exceeds 10k (cumulative issuance)");
 
     // stage should still be 0 — circulating supply hasn't hit 1M
     if (s.currentStage !== 0) throw new Error(`Stage advanced to ${s.currentStage} unexpectedly`);
     console.log("  ✓ stage is still 0 — circulating supply gate holds");
 
     // remaining buy capacity = 1_000_000 - total_sold (should be > 0)
-    const remaining = 1_000_000 - totalSold;
+    const remaining = 10_000 - totalSold;
     if (remaining <= 0) throw new Error(`remaining = ${remaining}, expected > 0`);
     console.log("  ✓ remaining buy capacity:", remaining.toLocaleString(), "tokens");
 
@@ -601,38 +609,38 @@ describe("nautilus vNext — recovery floor design verification", () => {
   const FLOOR = 1 / PHI; // ≈ 0.6180339887498948
 
   const STAGE_SUPPLY_ARR = [
-    1_000_000, 1_000_000, 2_000_000, 3_000_000, 5_000_000,
-    8_000_000, 13_000_000, 21_000_000, 34_000_000, 55_000_000,
-    89_000_000, 144_000_000,
+       10_000,      10_000,      20_000,      30_000,      50_000,
+       80_000,     130_000,     210_000,     340_000,     550_000,
+      890_000,   1_440_000,
   ];
 
   const EXPECTED_COMPLETION_TREASURY = [
-    1_000_000_000_000,
-    2_000_000_000_000,
-    4_713_998_000_000,
-    9_580_928_000_000,
-    19_738_978_000_000,
-    39_729_722_000_000,
-    79_959_379_000_000,
-    160_229_002_000_000,
-    320_913_138_000_000,
-    642_170_723_000_000,
-    1_284_770_481_000_000,
-    2_569_905_249_000_000,
+    10_000_000_000,
+    20_000_000_000,
+    47_139_980_000,
+    95_809_250_000,
+    197_389_750_000,
+    397_297_190_000,
+    799_593_760_000,
+    1_602_289_990_000,
+    3_209_131_010_000,
+    6_421_706_310_000,
+    12_847_703_000_000,
+    25_699_050_680_000,
   ];
 
   const EXPECTED_ENTRY_RECOVERY = [
     1.0,
     0.7369202188063514,
-    0.7264329875301268,
-    0.6737041065952619,
-    0.6582705809582008,
-    0.6419224329951410,
-    0.6339040757898935,
-    0.6278462186533783,
-    0.6243298854718092,
-    0.6219620887894245,
-    0.6205137131793684,
+    0.7264334353073305,
+    0.6737038956436380,
+    0.6582704809118993,
+    0.6419223845234375,
+    0.6339040520064144,
+    0.6278463397473901,
+    0.6243299203757186,
+    0.6219620858262807,
+    0.6205136257606554,
   ];
 
   const buyAccounts = () => ({
@@ -645,7 +653,7 @@ describe("nautilus vNext — recovery floor design verification", () => {
   async function buyChunked(total: number) {
     let remaining = total;
     while (remaining > 0) {
-      const chunk = Math.min(remaining, 1_000_000);
+      const chunk = Math.min(remaining, 100_000);
       await program.methods.buy(new anchor.BN(chunk)).accounts(buyAccounts()).rpc();
       remaining -= chunk;
     }
@@ -654,7 +662,7 @@ describe("nautilus vNext — recovery floor design verification", () => {
   async function sellChunked(total: number) {
     let remaining = total;
     while (remaining > 0) {
-      const chunk = Math.min(remaining, 1_000_000);
+      const chunk = Math.min(remaining, 100_000);
       await program.methods.sell(new anchor.BN(chunk)).accounts(sellAccounts()).rpc();
       remaining -= chunk;
     }
@@ -668,6 +676,7 @@ describe("nautilus vNext — recovery floor design verification", () => {
     const metadata = getMetadataPDA(mint.publicKey);
     await program.methods
       .initialize("Recovery Test", "RCV", "https://arweave.net/test")
+      // @ts-ignore — metadata and tokenMetadataProgram are valid accounts per IDL
       .accounts({
         state: state.publicKey,
         mint: mint.publicKey,
@@ -729,16 +738,16 @@ describe("nautilus vNext — recovery floor design verification", () => {
     // Use recorded completion treasuries to compute entry gaps
     // Stage 3 entry (after stage 2 completion): sell_price = treasury[1]/total_sold_after_stage2
     // total_sold after stage 2 = 2_000_000
-    const sellAfterStage2 = EXPECTED_COMPLETION_TREASURY[1] / 2_000_000;
+    const sellAfterStage2 = EXPECTED_COMPLETION_TREASURY[1] / 20_000;
     const gapStage3 = 1 - sellAfterStage2 / PRICE_TABLE[2];
 
-    const sellAfterStage3 = EXPECTED_COMPLETION_TREASURY[2] / 4_000_000;
+    const sellAfterStage3 = EXPECTED_COMPLETION_TREASURY[2] / 40_000;
     const gapStage4 = 1 - sellAfterStage3 / PRICE_TABLE[3];
 
-    const sellAfterStage4 = EXPECTED_COMPLETION_TREASURY[3] / 7_000_000;
+    const sellAfterStage4 = EXPECTED_COMPLETION_TREASURY[3] / 70_000;
     const gapStage5 = 1 - sellAfterStage4 / PRICE_TABLE[4];
 
-    const sellAfterStage5 = EXPECTED_COMPLETION_TREASURY[4] / 12_000_000;
+    const sellAfterStage5 = EXPECTED_COMPLETION_TREASURY[4] / 120_000;
     const gapStage6 = 1 - sellAfterStage5 / PRICE_TABLE[5];
 
     console.log(`  Stage 3 entry gap: ${(gapStage3*100).toFixed(2)}% (legacy ~50%)`);
@@ -756,7 +765,7 @@ describe("nautilus vNext — recovery floor design verification", () => {
   it("test 5: panic sell improves recovery ratio", async () => {
     // state is now after stage 12 completion (buy-only)
     // buy a bit more to have something to sell in stage 12
-    await buyChunked(1_000_000);
+    await buyChunked(10_000);
 
     const sBefore = await (program.account as any).nautilusState.fetch(state.publicKey);
     const tbBefore = sBefore.treasuryBalance.toNumber();
