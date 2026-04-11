@@ -2,13 +2,13 @@
 
 ## Technical Specification
 
-*Fibonacci-powered, treasury-backed token launch framework on Solana.*
+*Recovery-floor-first, treasury-backed token launch framework with a Fibonacci issuance ladder on Solana.*
 
 ---
 
 ## 1. Overview
 
-Nautilus is an open-source token launch framework for Solana. It uses an asymmetric pricing model in which buy price follows the Fibonacci sequence and sell price follows a weighted average derived from treasury balance. The treasury is a program-derived address with no private key; funds move only through protocol-defined instructions.
+Nautilus is an open-source token launch framework for Solana. It uses an asymmetric pricing model in which buy price follows a pre-computed table derived from a recovery floor target, and sell price follows a weighted average derived from treasury balance. The treasury is a program-derived address with no private key; funds move only through protocol-defined instructions.
 
 Nautilus has no on-chain admin functions. However, the current deployed program remains upgradeable until upgrade authority is revoked. See Section 8.
 
@@ -18,7 +18,7 @@ Nautilus has no on-chain admin functions. However, the current deployed program 
 
 | Component | Implementation | Notes |
 |---|---|---|
-| Buy price | Fibonacci fixed | `BASE_PRICE × FIB[current_stage]` |
+| Buy price | Pre-computed PRICE_TABLE | `floor(BASE_PRICE × FIB[stage]^a)`, `a = log_φ(2) - 1` |
 | Sell price | Weighted average | `treasury_balance ÷ total_sold` |
 | Treasury | Program-derived address | No private key exists |
 | Mint authority | Program-derived address | No private key exists |
@@ -29,15 +29,18 @@ Nautilus has no on-chain admin functions. However, the current deployed program 
 
 ## 3. Pricing Mechanism
 
-### 3.1 Buy Price — Fibonacci Fixed
+### 3.1 Buy Price — Pre-computed Table
 
 ```
-buy_price = BASE_PRICE_LAMPORTS × FIB[current_stage]
+PRICE_TABLE[stage] = floor(BASE_PRICE × FIB[stage]^a)
 
-BASE_PRICE_LAMPORTS = 1,000,000 (0.001 SOL)
+BASE_PRICE = 1,000,000 lamports (0.001 SOL)
+a = log_φ(2) - 1 ≈ 0.4404
 ```
 
-The price schedule is fixed by the program logic.
+The table is generated offline and stored in the program. Buy price is not computed at runtime from the Fibonacci sequence directly.
+
+At high stages, the supply ratio between adjacent stages approaches φ. The corresponding buy price ratio approaches 2/φ, and stage capital (total SOL inflow for that stage) grows asymptotically by a factor of 2. This gives rise to the property that the high-stage buy-only asymptotic worst-case recovery floor converges to 1/φ.
 
 ### 3.2 Sell Price — Weighted Average
 
@@ -62,42 +65,48 @@ Sell price is calculated from `state.treasury_balance` (accounted treasury), not
 
 ---
 
-## 4. Fibonacci Supply Stages
+## 4. Fibonacci Issuance Ladder
 
-### 4.1 Stage Table (Stages 1–12)
+### 4.1 Stage Table (Stages 1–20)
 
 *Reference values under buy-only completion. Assumes SOL = $100. Actual values vary with SOL price. No returns are guaranteed.*
 
-| Stage | FIB | Supply | Buy (SOL) | Buy (USD) | Treasury value at completion |
+| Stage | FIB | Supply | Buy (SOL) | Buy (USD) | Treasury at completion |
 |---|---|---|---|---|---|
-| 1 | 1 | 1,000,000 | 0.0010 | $0.10 | $100K |
-| 2 | 1 | 1,000,000 | 0.0010 | $0.10 | $200K |
-| 3 | 2 | 2,000,000 | 0.0020 | $0.20 | $600K |
-| 4 | 3 | 3,000,000 | 0.0030 | $0.30 | $2M |
-| 5 | 5 | 5,000,000 | 0.0050 | $0.50 | $4M |
-| 6 | 8 | 8,000,000 | 0.0080 | $0.80 | $10M |
-| 7 | 13 | 13,000,000 | 0.0130 | $1.30 | $27M |
-| 8 | 21 | 21,000,000 | 0.0210 | $2.10 | $71M |
-| 9 | 34 | 34,000,000 | 0.0340 | $3.40 | $187M |
-| 10 | 55 | 55,000,000 | 0.0550 | $5.50 | $490M |
-| 11 | 89 | 89,000,000 | 0.0890 | $8.90 | $1.28B |
-| 12 | 144 | 144,000,000 | 0.1440 | $14.40 | $3.36B |
+| 1 | 1 | 10,000 | 0.0010 | $0.10 | $1.00K |
+| 2 | 1 | 10,000 | 0.0010 | $0.10 | $2.00K |
+| 3 | 2 | 20,000 | 0.0014 | $0.14 | $4.71K |
+| 4 | 3 | 30,000 | 0.0016 | $0.16 | $9.58K |
+| 5 | 5 | 50,000 | 0.0020 | $0.20 | $19.74K |
+| 6 | 8 | 80,000 | 0.0025 | $0.25 | $39.73K |
+| 7 | 13 | 130,000 | 0.0031 | $0.31 | $79.96K |
+| 8 | 21 | 210,000 | 0.0038 | $0.38 | $160.23K |
+| 9 | 34 | 340,000 | 0.0047 | $0.47 | $320.91K |
+| 10 | 55 | 550,000 | 0.0058 | $0.58 | $642.17K |
+| 11 | 89 | 890,000 | 0.0072 | $0.72 | $1.28M |
+| 12 | 144 | 1,440,000 | 0.0089 | $0.89 | $2.57M |
+| 13 | 233 | 2,330,000 | 0.0110 | $1.10 | $5.14M |
+| 14 | 377 | 3,770,000 | 0.0136 | $1.36 | $10.28M |
+| 15 | 610 | 6,100,000 | 0.0169 | $1.69 | $20.56M |
+| 16 | 987 | 9,870,000 | 0.0208 | $2.08 | $41.12M |
+| 17 | 1,597 | 15,970,000 | 0.0258 | $2.58 | $82.25M |
+| 18 | 2,584 | 25,840,000 | 0.0318 | $3.18 | $164.50M |
+| 19 | 4,181 | 41,810,000 | 0.0393 | $3.93 | $329.00M |
+| 20 | 6,765 | 67,650,000 | 0.0486 | $4.86 | $658.00M |
 
-Treasury value at completion means treasury balance at the point when all stages up to that stage have been sold out under buy-only history.
+Full 30-stage table is available in the repository. Treasury at completion = treasury balance at the point when all stages up to that stage are sold out under buy-only history.
 
-### 4.2 Golden Ratio Property
+### 4.2 Recovery Floor Property
 
-Under buy-only completion, the ratio between the current stage buy price and the protocol sell price at stage completion converges toward the golden ratio:
+Under buy-only completion at high stages, the protocol sell price at stage completion divided by the next stage's buy price converges toward 1/φ:
 
 ```
-buy_price / sell_price → φ ≈ 1.618033
+sell_price_at_completion / next_stage_buy_price → 1/φ ≈ 0.618
 ```
 
-This is a mathematical consequence of the Fibonacci sequence, not an explicit design parameter.
+This is a consequence of the price table design (`a = log_φ(2) - 1`) and the Fibonacci supply ladder, not an explicit on-chain parameter.
 
-At Stage 8, the ratio is approximately 1.5882. By Stage 20, it approaches approximately 1.6179.
-
-This is distinct from the worst-case next-stage entry ratio discussed in Section 7.1, where `sell_price / buy_price` approaches `1 / φ²`.
+This is distinct from the in-stage sell price discussed in Section 7.1.
 
 ### 4.3 Stage Advancement
 
@@ -107,21 +116,23 @@ A stage advances automatically when its advancement condition is met. Advancemen
 
 Stage 1 and Stage 2 use a different advancement rule from later stages.
 
-For Stage 1 and Stage 2 only, advancement is determined by current circulating supply, not by lifetime cumulative issuance. In the implementation, `total_sold` represents current circulating supply for this purpose.
+For Stage 1 and Stage 2 only, advancement is determined by current circulating supply, not by lifetime cumulative issuance.
+
+```
+Stage 1 → 2: total_sold >= 10,000
+Stage 2 → 3: total_sold >= 20,000
+Stage 3+:    standard tranche exhaustion (stage_sold >= STAGE_SUPPLY[stage])
+```
 
 This means repeated buy/sell cycling cannot artificially advance the bootstrap phase.
 
-```
-Stage 1 → 2: circulating supply >= 1,000,000
-Stage 2 → 3: circulating supply >= 2,000,000
-Stage 3+:    standard tranche exhaustion
-```
-
-From Stage 3 onward, Nautilus follows standard tranche exhaustion rules.
-
 ### 4.5 Maximum Amount Per Transaction
 
-Each instruction is limited to 1,000,000 tokens per transaction to avoid arithmetic overflow at high Fibonacci stages.
+Each instruction is limited to 100,000 tokens per transaction.
+
+### 4.6 Total Stages
+
+The protocol defines 30 stages. This is the maximum number of stages for which cumulative treasury balance remains within the u64 range under buy-only completion.
 
 ---
 
@@ -154,7 +165,7 @@ sell_price_after ≥ sell_price_before
 
 The 0.5% spread retained by the treasury means that valid sells push protocol sell price slightly upward.
 
-This monotonicity statement applies when the sell satisfies protocol constraints, including the treasury rent constraint, and when post-sell circulating supply remains positive. If circulating supply becomes zero, sell price is no longer defined.
+This monotonicity statement applies when the sell satisfies protocol constraints, including the treasury rent constraint, and when post-sell circulating supply remains positive.
 
 ### Property 3: No DEX Required
 
@@ -186,28 +197,22 @@ No private key exists for this address. SOL can only leave through protocol-defi
 
 In Nautilus, buy price and sell price are not the same.
 
-Buy price is fixed per stage and rises with each stage advance, following the Fibonacci sequence. Sell price is a weighted average determined by treasury balance and current circulating supply. Immediately after a new stage opens, sell price is typically below that stage's buy price.
+Buy price is fixed per stage and rises with each stage advance. Sell price is a weighted average determined by treasury balance and current circulating supply. Immediately after a new stage opens, sell price is typically below that stage's buy price.
 
 ### 7.1 Worst Case at Stage Entry
 
-In the extreme case where virtually no selling has occurred in prior stages, the stage-entry ratio approaches:
+In the buy-only, high-stage, asymptotic worst case, the protocol sell / current buy ratio approaches 1/φ ≈ 0.618. The resulting immediate downside ceiling, including the 0.5% spread, is approximately 38.5%.
 
-```
-sell_price / buy_price → 1 / φ² ≈ 0.382
-```
-
-At high stages, a buyer who purchases at stage entry and immediately sells back to the protocol could therefore recover only approximately 38% of the purchase value before accounting for market path improvements within the stage.
-
-This is a theoretical worst-case ceiling, not a description of typical purchase experience. Monte Carlo simulations illustrating typical experience are available in the repository.
+This is a theoretical worst-case ceiling under buy-only conditions at high stages, not a description of typical purchase experience. Monte Carlo simulations illustrating typical experience are available in the repository.
 
 ### 7.2 Sell Price Formation as Trading Progresses
 
-Sell price is not fixed. It is recalculated continuously from treasury balance and circulating supply, and changes as market activity accumulates.
+Sell price is not fixed. It is recalculated continuously from treasury balance and circulating supply.
 
 - Buys add SOL to the treasury while also increasing circulating supply.
 - Valid sells reduce circulating supply and leave a 0.5% spread in the treasury.
 
-As a result, under the protocol rules, sell price tends to build upward over time as trading activity accumulates.
+Sell price improvement does not happen automatically over time. It happens because additional buy flow and burn push up the treasury / circulating supply ratio.
 
 ---
 
@@ -218,7 +223,7 @@ No on-chain admin functions exist in the protocol itself. However, the deployed 
 | Version | Upgrade authority status |
 |---|---|
 | v0.4 | Held by deployer |
-| v0.5 (current) | Held by deployer |
+| v0.5 | Held by deployer |
 | v0.6 (planned) | Revoked — program immutable |
 
 To verify current upgrade authority status:
@@ -262,7 +267,7 @@ nautilus balance <STATE_ADDRESS>
 - Direct SOL transfers to the treasury PDA do not affect protocol pricing.
 - Sell price is undefined when circulating supply is zero.
 - Stage supply caps are global, not per-wallet.
-- Maximum 1,000,000 tokens per transaction.
+- Maximum 100,000 tokens per transaction.
 - No profit is guaranteed at any stage.
 
 ---
