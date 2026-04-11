@@ -1,0 +1,321 @@
+# Nautilus Proof Note
+
+## Buy-only is the worst case, and recovery converges to 1/φ
+
+---
+
+## Scope and conditions
+
+This note proves two claims about an idealized standard-tranche Nautilus model:
+
+1. **Buy-only is the worst case for stage-entry recovery.**
+2. **Under buy-only, high-stage entry recovery converges to 1/φ.**
+
+The idealized model is:
+- Protocol sell price: `S = T / N` where `T` is treasury balance and `N` is circulating supply
+- Valid sells retain a spread `f ∈ (0,1)`, here `f = 0.005`
+- Buy price is fixed per stage: `p_n = floor(BASE_PRICE × FIB[n]^a)`, `a = log_φ(2) - 1`
+- Stage supply: `q_n = FIB[n] × 10,000`
+- Stage `n` advances when its tranche is fully sold (standard tranche exhaustion)
+- Stages are indexed `n = 0, 1, 2, ...` without a hard upper bound
+
+**Relationship to the current implementation:**
+The current implementation uses standard tranche rules for stages `n ≥ 2`, with a bootstrap phase for stages 0 and 1, and a hard cap of 30 stages. The worst-case claim is pathwise and does not rely on `n → ∞`. The convergence claim is asymptotic and describes the design target rather than a literal limit of the finite implementation.
+
+---
+
+## 1. Definitions
+
+A protocol state is `(T, N)` with `T > 0`, `N > 0`, and sell price `S = T / N`.
+
+Inside stage `n`, buy price is fixed at `p_n`.
+
+**Buy of `x > 0` tokens at stage price `p`:**
+```
+T' = T + p×x
+N' = N + x
+```
+
+**Valid sell of `k` tokens** (`0 < k < N`):
+```
+T' = T × (1 - (1-f) × k/N)
+N' = N - k
+```
+
+A **path** is a finite sequence of buys and sells.
+
+For pathwise reasoning, we extend the protocol state to `(T, N, m, r)` where:
+- `m` is the current stage index
+- `r` is the number of tokens already sold in the current tranche
+
+A buy of `x` tokens updates `(m, r)` according to standard tranche exhaustion. A sell does not change `(m, r)`. Therefore stage progression and current buy price are determined entirely by the buy sequence.
+
+The **stage-entry sell price** at stage `n+1` is the protocol sell price at the moment stage `n` completes.
+
+The **stage-entry recovery ratio** is `R_n = S_n / p_{n+1}`.
+
+---
+
+## 2. Proposition 1: Valid sells strictly increase protocol sell price
+
+**Claim:** After any valid sell, `S_after > S_before`.
+
+**Proof:**
+
+After selling `k` tokens:
+```
+T' = T × (1 - (1-f) × k/N)
+N' = N - k
+S' = T' / N'
+```
+
+Since `f > 0`:
+```
+1 - (1-f) × k/N  >  1 - k/N  =  (N-k)/N
+```
+
+Therefore:
+```
+S'  >  T × (N-k)/N / (N-k)  =  T/N  =  S
+```
+
+**Every valid sell strictly increases protocol sell price.** □
+
+---
+
+## 3. Proposition 2: Buy price is monotone non-decreasing
+
+**Claim:** For all `n ≥ 0`, `p_{n+1} ≥ p_n`.
+
+**Proof:**
+
+For `n ≥ 2`, `p_n = floor(BASE_PRICE × FIB[n]^a)` with `a > 0`. Since `FIB[n]` is strictly increasing for `n ≥ 2`, `FIB[n]^a` is strictly increasing, so `p_n` is non-decreasing. Also `p_0 = p_1 = BASE_PRICE`. Therefore `p_{n+1} ≥ p_n` for all `n ≥ 0`. □
+
+---
+
+## 4. Proposition 3: Under buy-only, completion-time sell price satisfies S_n ≤ p_{n+1}
+
+**Claim:** After completing stage `n` under buy-only, the completion-time sell price satisfies `S_n ≤ p_{n+1}`.
+
+**Proof:**
+
+Under buy-only completion through stage `n`:
+```
+T_n = Σ p_i × q_i    (i = 0 to n)
+N_n = Σ q_i
+S_n = T_n / N_n
+```
+
+We need `T_n ≤ p_{n+1} × N_n`, equivalently:
+```
+Σ (p_{n+1} - p_i) × q_i  ≥  0
+```
+
+By Proposition 2, each term is nonnegative. Therefore `S_n ≤ p_{n+1}`. □
+
+---
+
+## 5. Proposition 4: During a stage, buys preserve S ≤ p_n
+
+**Claim:** If stage `n` starts from `(T_0, N_0)` with `S_0 ≤ p_n`, then after any sequence of buys totaling `X` inside stage `n`, the intermediate state satisfies `S' ≤ p_n`.
+
+**Proof:**
+
+```
+S' = (T_0 + p_n×X) / (N_0 + X)  ≤  p_n
+⟺  T_0  ≤  p_n × N_0
+⟺  S_0  ≤  p_n  ✓
+```
+□
+
+---
+
+## 6. Corollary: On a buy-only path, before every buy, S ≤ p_current
+
+Consider any buy-only path.
+- After stage `n` completes, Proposition 3 gives `S_n ≤ p_{n+1}`.
+- Inside stage `n+1`, Proposition 4 preserves `S ≤ p_{n+1}` throughout.
+
+Therefore, stage by stage, along any buy-only path, immediately before every buy from a positive-supply state, current sell price is at most the current stage buy price. □
+
+---
+
+## 7. Comparison Lemma for a common buy
+
+**Setup:** Two states `A = (T_A, N_A)` and `B = (T_B, N_B)` satisfy:
+```
+S_A ≥ S_B    and    N_A ≤ N_B    and    S_B ≤ p
+```
+
+Apply the same buy of `x > 0` tokens at price `p` to both states.
+
+**Claim:** `S_A' ≥ S_B'` and `N_A' ≤ N_B'`.
+
+**Proof:**
+
+A direct calculation gives:
+```
+S_A' - S_B' = [N_A(N_B+x)(S_A - S_B) + x(N_B - N_A)(p - S_B)]
+              ────────────────────────────────────────────────
+                            (N_A+x)(N_B+x)
+```
+
+The denominator is positive. The numerator is nonnegative because:
+- `S_A - S_B ≥ 0`
+- `N_B - N_A ≥ 0`
+- `p - S_B ≥ 0`
+
+Therefore `S_A' ≥ S_B'`. Also `N_A' = N_A+x ≤ N_B+x = N_B'`. □
+
+**Note:** This lemma requires only `S_B ≤ p`. There is no requirement that `S_A ≤ p`.
+
+---
+
+## 8. Comparison Lemma for a sell-versus-no-op step
+
+**Setup:** Two states satisfy `S_A ≥ S_B` and `N_A ≤ N_B`. Path A performs a valid sell of `k > 0`; path B does nothing.
+
+**Claim:** `S_A' ≥ S_B'` and `N_A' ≤ N_B'`.
+
+**Proof:**
+
+By Proposition 1, the sell strictly increases sell price on A:
+```
+S_A' > S_A ≥ S_B = S_B'
+```
+
+Also `N_A' = N_A - k < N_A ≤ N_B = N_B'`. □
+
+---
+
+## 9. Theorem: Buy-only is the worst case for stage-entry recovery
+
+**Claim:** Among all valid paths that reach stage `n+1` entry, the buy-only path minimizes the stage-entry sell price and therefore minimizes `R_n = S_n / p_{n+1}`.
+
+**Proof:**
+
+Let Q be any valid path that reaches stage `n+1` entry.
+
+Construct a reference path B by **deleting every sell operation from Q** and keeping every buy operation with the same amount and same stage price, in the same order.
+
+Because standard tranche exhaustion depends only on buys, not sells, the buy sequence alone determines stage progression. Therefore:
+- B reaches stage `n+1` entry
+- The stage-completing buy in B is the same buy event as in Q
+- Corresponding buy operations occur at the same stage price in both paths
+
+We compare Q and B operation by operation. When Q performs a buy, B performs the same buy. When Q performs a sell, B performs no-op.
+
+**We prove by induction** that after every processed operation:
+```
+S_Q ≥ S_B    and    N_Q ≤ N_B
+```
+
+**Base case:** Before the first buy, no sell is possible (initial state `T = 0, N = 0`). After the first common buy, both paths are identical, so the invariant holds.
+
+**Inductive step:** Assume the invariant holds before the next operation.
+
+**Case 1: Q performs a sell, B does nothing.**
+By Section 8, the invariant is preserved.
+
+**Case 2: Q performs a buy of `x` at price `p`, B performs the same buy.**
+Since B is buy-only, Corollary 6 gives `S_B ≤ p` immediately before this buy. Therefore Section 7 applies, and the invariant is preserved.
+
+By induction, after every processed operation, `S_Q ≥ S_B` and `N_Q ≤ N_B`.
+
+In particular, at the moment stage `n` completes:
+```
+S_n(Q) ≥ S_n(B)
+```
+
+Since B is the buy-only path — the path obtained by executing the same buys as Q in the same order with no sells — and `p_{n+1}` is fixed:
+```
+R_n(Q) = S_n(Q) / p_{n+1}  ≥  S_n(B) / p_{n+1}  =  R_n(buy-only)
+```
+
+**Buy-only minimizes the stage-entry recovery ratio.** □
+
+---
+
+## 10. Asymptotic recovery under buy-only
+
+Under buy-only completion through stage `n`:
+```
+R_n = S_n / p_{n+1}
+    = (T_n / N_n) / p_{n+1}
+```
+
+**High-stage asymptotics:**
+
+By Binet's formula, `FIB[n] ~ φ^n / √5`. Therefore:
+```
+q_n = 10,000 × FIB[n]  ~  Q × φ^n        (supply growth ratio s = φ)
+p_n = floor(BASE_PRICE × FIB[n]^a)
+    = C × FIB[n]^a + O(1)  ~  C' × φ^(an)
+                              (floor contributes only relative o(1) since FIB[n]^a → ∞)
+```
+
+Stage capital:
+```
+a_n = p_n × q_n  ~  A × φ^((a+1)n)
+```
+
+Since `a + 1 = log_φ(2)`, we have `φ^(a+1) = 2`, so:
+```
+a_n  ~  A × 2^n        (capital growth ratio c = 2)
+```
+
+Therefore:
+```
+T_n = Σ a_i  ~  A × 2^(n+1) / (2-1)
+N_n = Σ q_i  ~  Q × φ^(n+1) / (φ-1)
+p_{n+1}      ~  (A/Q) × (2/φ)^(n+1)
+```
+
+So:
+```
+R_n = (T_n / N_n) / p_{n+1}  →  (φ-1) / (2-1)  =  φ-1  =  1/φ
+```
+
+**Under buy-only, `R_n → 1/φ ≈ 0.618`.**
+
+Worst-case loss: `1 - 1/φ = 1/φ² ≈ 0.382`
+
+With 0.5% spread, immediate downside upper bound:
+```
+1 - 0.995/φ  ≈  0.385  (38.5%)
+```
+□
+
+---
+
+## 11. Summary
+
+| Claim | Section | Status |
+|---|---|---|
+| Valid sells strictly increase sell price | Proposition 1 | ✓ Proven |
+| Buy price is monotone non-decreasing | Proposition 2 | ✓ Proven |
+| `S_completion ≤ p_next` under buy-only | Proposition 3 | ✓ Proven |
+| Buys preserve `S ≤ p_n` within a stage | Proposition 4 | ✓ Proven |
+| `S ≤ p_current` holds before every buy on buy-only path | Corollary 6 | ✓ Proven |
+| Invariant preserved under common buy (with `S_B ≤ p`) | Section 7 | ✓ Proven |
+| Invariant preserved under sell-vs-no-op | Section 8 | ✓ Proven |
+| Buy-only minimizes stage-entry recovery ratio | Theorem (Section 9) | ✓ Proven |
+| Recovery → 1/φ under buy-only asymptotic | Section 10 | ✓ Proven |
+
+**For the idealized standard-tranche Nautilus model:**
+
+> Among all valid paths to stage `n+1` entry, the buy-only path minimizes stage-entry sell price and therefore minimizes stage-entry recovery. Under buy-only, stage-entry recovery converges to 1/φ. The asymptotic worst-case immediate downside, including the 0.5% spread, is approximately 38.5%.
+
+---
+
+## 12. What this proof does not cover
+
+- The bootstrap phase (stages 0 and 1 use circulating-supply-based advancement; the proof applies from stage 2 onward in the standard-tranche model)
+- The 30-stage hard cap of the current implementation (convergence is asymptotic; the worst-case claim holds at every stage)
+- Market price beyond the protocol sell price (secondary markets)
+- Paths where stage completion does not occur
+
+---
+
+*This note covers the idealized standard-tranche Nautilus model.*
+*It does not constitute financial advice.*
