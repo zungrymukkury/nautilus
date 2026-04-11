@@ -22,6 +22,8 @@ Nautilus is one such attempt.
 
 Supply follows a Fibonacci issuance ladder, and buy prices follow a pre-computed table derived from a recovery floor target. Sale proceeds are held in a program-derived address, providing a set of mathematically verifiable properties.
 
+Nautilus first aims to protect three things: that large sell orders cannot mechanically destroy the exit price, that the worst-case loss range is legible by design, and that no private key exists for the treasury.
+
 Nautilus is designed so that growth changes scale, but not the geometry of worst-case recovery.
 
 ---
@@ -84,13 +86,9 @@ Stage 1 and Stage 2 use a different advancement rule from later stages. In Stage
 
 ## 3. Three Core Properties
 
-### Property 1: No Private Key Exists
+### Property 1: Large Sell Orders Cannot Mechanically Destroy the Exit Price
 
-The treasury is a program-derived address. No private key exists. SOL can only leave via the sell instruction, which requires burning tokens.
-
-Nobody — including the deployer — can withdraw funds outside of the protocol.
-
-### Property 2: For Valid Sells, the Protocol Sell Price Does Not Decrease
+In ordinary tokens, large sell orders push the price down directly. In Nautilus, this does not happen.
 
 The sell price is calculated as:
 
@@ -98,26 +96,34 @@ The sell price is calculated as:
 sell price = treasury balance ÷ tokens in circulation
 ```
 
-When a holder sells, two things happen simultaneously: the treasury decreases, and the number of tokens in circulation decreases. The sell price formula absorbs the impact of large sell orders in a way that ordinary token pricing does not.
-
-Formally, after selling k tokens from a treasury T with N tokens in circulation:
+When a holder sells, both the treasury balance and the number of tokens in circulation decrease simultaneously. Formally, after selling k tokens from a treasury T with N tokens in circulation:
 
 ```
-treasury_after  = T × (1 - 0.995k/N)
+treasury_after   = T × (1 - 0.995k/N)
 sell_price_after = treasury_after / (N - k) ≥ sell_price_before
 ```
 
-The 0.5% spread retained by the treasury means that sell price tends to rise slightly after every sell transaction.
+No matter how large the sell order, this inequality holds. The 0.5% spread retained by the treasury means that sell price tends to rise slightly after every valid sell transaction.
 
 This holds for valid sells that leave at least one token in circulation and satisfy the treasury rent constraints.
 
-### Property 3: No DEX Required
+### Property 2: The Worst-Case Loss Range Is Legible
 
-Nautilus does not rely on any external liquidity pool or decentralized exchange. Buying and selling occur directly through the protocol. The treasury itself acts as the counterparty.
+In the buy-only, high-stage, asymptotic worst case, the protocol sell / current buy ratio approaches 1/φ ≈ 0.618. The resulting immediate downside ceiling, including the 0.5% spread, is approximately 38.5%.
 
-This means:
-- There is no external LP position to drain or withdraw
-- Sell price is determined by the treasury balance, not by a market maker
+This upper bound is determined by design, not by market conditions. In practice, as selling occurs and circulating supply decreases, sell price moves in a better direction than this worst case.
+
+Monte Carlo simulations illustrating typical experiences are available on GitHub.
+
+### Property 3: No Private Key Exists
+
+The treasury is a program-derived address. No private key exists. SOL can only leave via the sell instruction, which requires burning tokens.
+
+Nobody — including the deployer — can withdraw funds outside of the protocol.
+
+### A Consequence of the Design: No DEX Required
+
+Nautilus does not rely on any external liquidity pool or decentralized exchange. Buying and selling occur directly through the protocol. The treasury itself acts as the counterparty. There is no external LP position to drain or withdraw.
 
 ---
 
@@ -127,13 +133,7 @@ In Nautilus, buy price and sell price are not the same.
 
 Buy price is fixed per stage and rises with each stage advance. Sell price is a weighted average continuously recalculated from treasury balance and circulating supply. Immediately after a new stage opens, sell price is typically below that stage's buy price.
 
-### 4.1 Worst Case at Stage Entry
-
-Immediately after a new stage opens, the gap between buy price and sell price is at its widest. In the buy-only, high-stage, asymptotic worst case, the protocol sell / current buy ratio approaches 1/φ ≈ 0.618. The resulting immediate downside ceiling, including the 0.5% spread, is approximately 38.5%.
-
-This is the asymptotic worst-case ceiling under buy-only conditions at high stages, not a description of the typical purchase experience. Monte Carlo simulations illustrating typical experiences are available on GitHub.
-
-### 4.2 Sell Price Formation as Trading Progresses
+### 4.1 Sell Price Formation as Trading Progresses
 
 Sell price in Nautilus is not a fixed value. It is continuously recalculated from treasury balance and circulating supply, and evolves as market activity accumulates.
 
@@ -174,12 +174,12 @@ It cannot eliminate snipers entirely, nor can it stop speculative behavior.
 
 But a few things can be guaranteed mathematically.
 
+- Large sell orders do not push the protocol sell price down.
+- Under buy-only worst-case conditions, the recovery floor approaches 1/φ at high stages.
 - No private key exists for the treasury.
 - No admin functions exist on-chain.
 - The treasury cannot be withdrawn arbitrarily.
-- For valid sells, the protocol sell price does not decrease.
 - No DEX or external liquidity is required.
-- Under buy-only worst-case conditions, the recovery floor approaches 1/φ at high stages.
 
 All of this is published as open-source code and can be verified by anyone.
 

@@ -2,47 +2,36 @@
 
 ![Automated Security Checks](https://github.com/zungrymukkury/nautilus/actions/workflows/security-check.yml/badge.svg)
 
-> ⚠️ **This is a mainnet beta. Nautilus may break or stop working.**
+> ⚠️ **This is experimental software. Nautilus may break or stop working.**
 > Only participate if you can read and verify the code yourself.
 > If you find a bug, please open an issue on GitHub.
 > This is not financial advice. Use at your own risk.
 
 ---
 
-**Mainnet deployment (v0.5)**
-
-| | |
-|---|---|
-| Program ID | `32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev` |
-| State | `fR1QnzzmucFwwir6o6vajBZQoZEVfYbATWGcstHKSUm` |
-| Mint (CA) | `HjyDnB2z7w55mpurq3VEC2gtTdzEieYNHE1J2wpqxaEE` |
-
-Verify on-chain: https://explorer.solana.com/address/32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev
-
-Frontend: https://zungrymukkury.github.io/nautilus/
-
----
-
-A Fibonacci-powered, treasury-backed token launch framework on Solana.
-
-Buy price follows the Fibonacci sequence. Sell price is defined as treasury_balance ÷ total_sold. The treasury is a program-derived address with no private key.
+A recovery-floor-first, treasury-backed token launch framework with a Fibonacci issuance ladder on Solana.
 
 ```
-Fibonacci-powered, treasury-backed token launch framework on Solana.
 No on-chain admin. No private key. Just math.
 ```
 
 ## Why Nautilus?
 
-- No on-chain admin functions
-- Treasury has no private key
-- No DEX required to exit
+- **Large sell orders do not push the protocol sell price down.**
+- **The worst-case loss range is legible by design.**
+- **No private key exists for the treasury.**
 
 ## How it works
 
-**Buy price** is fixed per stage:
+**Supply** follows a Fibonacci issuance ladder:
 ```
-buy_price = 0.001 SOL × FIB[stage]
+supply = FIB[stage] × 10,000 tokens
+```
+
+**Buy price** is provided by a pre-computed table:
+```
+PRICE_TABLE[stage] = floor(0.001 SOL × FIB[stage]^a)
+a = log_φ(2) - 1 ≈ 0.4404
 ```
 
 **Sell price** is defined as:
@@ -54,50 +43,73 @@ sell_price = treasury_balance ÷ total_sold
 
 **Stages** advance automatically when supply is exhausted. Advancement is irreversible.
 
-**Token Metadata** is registered via Metaplex CPI at initialization. Logo and metadata are permanently stored on Arweave.
+## Three core properties
 
-- Treasury is the counterparty
-- No external LP required
-- Exit is built into the protocol
+**1. Large sell orders cannot mechanically destroy the exit price.**
 
-## Two mathematically verifiable properties
+When a holder sells k tokens from treasury T with N tokens in circulation:
+```
+treasury_after   = T × (1 - 0.995k/N)
+sell_price_after = treasury_after / (N - k) ≥ sell_price_before
+```
+No matter how large the sell order, this inequality holds. The 0.5% spread retained in the treasury means sell price tends to rise slightly after every valid sell.
 
-**1. The treasury cannot be drained.**
-As long as at least one token remains in circulation, the treasury balance stays positive. This holds regardless of market conditions.
+**2. The worst-case loss range is legible.**
 
-**2. For valid sells, the protocol sell price does not decrease.**
-After every valid sell transaction (as long as at least one token remains in circulation and the treasury rent constraint is satisfied), the sell price is pushed upward by the 0.5% spread retained in the treasury.
+In the buy-only, high-stage, asymptotic worst case, protocol sell / current buy approaches 1/φ ≈ 0.618. The immediate downside ceiling including the 0.5% spread is approximately 38.5%. This upper bound is set by design, not by market conditions.
+
+**3. No private key exists for the treasury.**
+
+The treasury is a program-derived address. No one — including the deployer — can withdraw funds outside of the protocol.
 
 ## Stage table
 
-*Reference values under buy-only completion (i.e. no intermediate sells). Actual treasury values may differ if sells occur during earlier stages. Assumes SOL = $100.*
+*Reference values under buy-only completion. Actual treasury values may differ if sells occur. Assumes SOL = $100. No returns guaranteed.*
 
-| Stage | FIB | Supply | Buy price | Treasury value at completion |
-|-------|-----|--------|-----------|------------------------------|
-| 1  | 1   | 1,000,000   | 0.0010 SOL | ~$100K |
-| 2  | 1   | 1,000,000   | 0.0010 SOL | ~$200K |
-| 3  | 2   | 2,000,000   | 0.0020 SOL | ~$600K |
-| 4  | 3   | 3,000,000   | 0.0030 SOL | ~$2M   |
-| 5  | 5   | 5,000,000   | 0.0050 SOL | ~$4M   |
-| 6  | 8   | 8,000,000   | 0.0080 SOL | ~$10M  |
-| 7  | 13  | 13,000,000  | 0.0130 SOL | ~$27M  |
-| 8  | 21  | 21,000,000  | 0.0210 SOL | ~$71M  |
-| 9  | 34  | 34,000,000  | 0.0340 SOL | ~$187M |
-| 10 | 55  | 55,000,000  | 0.0550 SOL | ~$490M |
-| 11 | 89  | 89,000,000  | 0.0890 SOL | ~$1.3B |
-| 12 | 144 | 144,000,000 | 0.1440 SOL | ~$3.4B |
+| Stage | FIB | Supply | Buy price (SOL) | Treasury at completion |
+|---|---|---|---|---|
+| 1 | 1 | 10,000 | 0.0010 | $1.00K |
+| 2 | 1 | 10,000 | 0.0010 | $2.00K |
+| 3 | 2 | 20,000 | 0.0014 | $4.71K |
+| 4 | 3 | 30,000 | 0.0016 | $9.58K |
+| 5 | 5 | 50,000 | 0.0020 | $19.74K |
+| 6 | 8 | 80,000 | 0.0025 | $39.73K |
+| 7 | 13 | 130,000 | 0.0031 | $79.96K |
+| 8 | 21 | 210,000 | 0.0038 | $160.23K |
+| 9 | 34 | 340,000 | 0.0047 | $320.91K |
+| 10 | 55 | 550,000 | 0.0058 | $642.17K |
+| 11 | 89 | 890,000 | 0.0072 | $1.28M |
+| 12 | 144 | 1,440,000 | 0.0089 | $2.57M |
+| 13 | 233 | 2,330,000 | 0.0110 | $5.14M |
+| 14 | 377 | 3,770,000 | 0.0136 | $10.28M |
+| 15 | 610 | 6,100,000 | 0.0169 | $20.56M |
+| 16 | 987 | 9,870,000 | 0.0208 | $41.12M |
+| 17 | 1,597 | 15,970,000 | 0.0258 | $82.25M |
+| 18 | 2,584 | 25,840,000 | 0.0318 | $164.50M |
+| 19 | 4,181 | 41,810,000 | 0.0393 | $329.00M |
+| 20 | 6,765 | 67,650,000 | 0.0486 | $658.00M |
 
-## The buy/sell spread
+Full 30-stage table in the whitepaper.
+
+## Buy price and sell price
 
 Buy price and sell price are not the same. Buy price rises in discrete steps at each stage. Sell price builds gradually through actual market activity.
 
-Immediately after a new stage opens, the gap between buy and sell price is at its widest. In the extreme case where no selling has occurred in prior stages, the immediate downside of buying and selling back can approach approximately 62%. As trading accumulates within a stage, this gap narrows.
+Sell price recovery is **flow-based, not time-based**. It improves as additional buy flow and token burns push up treasury / circulating supply. The central concern in Nautilus is not large sell orders, but entry quality at high stages.
 
-See the [Whitepaper](docs/Nautilus_Whitepaper_EN.pdf) and [Monte Carlo simulations](tests/) for details.
+See the [Whitepaper](docs/Nautilus_Whitepaper_EN.md) and [Monte Carlo simulations](tests/) for details.
+
+## Bootstrap phase
+
+Stage 1 and Stage 2 use circulating-supply-based advancement rather than cumulative issuance:
+```
+Stage 1 → 2: total_sold >= 10,000
+Stage 2 → 3: total_sold >= 20,000
+Stage 3+:    standard tranche exhaustion
+```
+Repeated buy/sell cycling cannot artificially advance the bootstrap phase.
 
 ## CLI
-
-All commands accept either a CA (Mint address) or State address — the CLI resolves automatically.
 
 ```bash
 export NAUTILUS_RPC=https://api.mainnet-beta.solana.com
@@ -119,41 +131,39 @@ node cli/dist/index.js portfolio
 ## Architecture
 
 | Component | Implementation |
-|-----------|---------------|
-| Buy price | Fibonacci fixed |
-| Sell price | Weighted average |
+|---|---|
+| Buy price | Pre-computed PRICE_TABLE (`floor(BASE_PRICE × FIB[stage]^a)`) |
+| Sell price | Weighted average (`treasury_balance ÷ total_sold`) |
 | Treasury | PDA — no private key |
 | Mint authority | PDA — no private key |
 | Token Metadata | Registered via Metaplex CPI |
 | Metadata storage | Arweave (permanent) |
-| Admin functions | No on-chain admin functions |
-| Upgrade authority | Held by deployer (v0.5) |
+| Admin functions | None |
+| Upgrade authority | Held by deployer (verify on-chain) |
 
 ## Security
 
 Automated security checks run on every push via GitHub Actions, checking 26 items from Trail of Bits, Neodyme, SlowMist, Zealynx, Cantina/QuillAudits, and Sealevel Attacks.
 
-Latest result: **26/26 PASS — No critical issues flagged by the current automated checks**
+Latest result: **26/26 PASS — No critical issues flagged**
 
 View full check history: https://github.com/zungrymukkury/nautilus/actions
 
 ## Upgrade authority
 
-Upgrade authority is currently held by the deployer. No on-chain admin functions exist.
+No on-chain admin functions exist. Upgrade authority is currently held by the deployer.
 
 - v0.5 (current) — Deployer holds upgrade authority
 - v0.6 (planned) — Revoked — program immutable
 
-To verify current upgrade authority:
+To verify:
 ```bash
-solana program show 32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev
+solana program show <PROGRAM_ID>
 ```
 
 ## Tests
 
-18 tests passing. Covers fresh-state regression, accounted treasury regression, ExceedsMaxAmount, and full stress test through stage 5 with panic sells.
-
-See [DEVELOPMENT.md](DEVELOPMENT.md) for local test setup instructions.
+28 tests passing. Covers fresh-state regression, accounted treasury regression, price table verification, bootstrap bot resistance, stage_sold overflow safety, recovery-floor design verification, and stress tests.
 
 ```bash
 make test-local
@@ -167,12 +177,9 @@ make test-local
 
 ## Status
 
-- [x] Localnet — 18/18 tests passing
-- [x] Mainnet — v0.5 deployed
-- [x] Token Metadata — registered via Metaplex
-- [x] Logo/Metadata — permanently stored on Arweave
+- [x] Localnet — 28/28 tests passing
 - [x] Automated security audit — 26/26 PASS on every push
-- [ ] Verifiable build (pending Solana Foundation Docker image update)
+- [ ] Mainnet deployment (pending)
 - [ ] Upgrade authority revoked
 
 Framework: Anchor 0.32.1
