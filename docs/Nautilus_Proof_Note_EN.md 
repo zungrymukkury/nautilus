@@ -308,7 +308,15 @@ With 0.5% spread, immediate downside upper bound:
 
 ---
 
-## 12. What this proof does not cover
+## 12. Full exit and proof scope
+
+The implementation permits full exit: a seller may sell all remaining tokens (`amount == total_sold`), reducing circulating supply to zero. In that case, `sell_price = treasury_balance / total_sold` is undefined after the sell, and the protocol is quiescent until a subsequent buy.
+
+The sell-price monotonicity proof (Proposition 1) and the pathwise worst-case comparison (Sections 6–9) apply to valid sells that leave positive post-sell circulating supply (`0 < k < N`). Full exit is operationally supported by the implementation but is outside the scope of these proofs.
+
+---
+
+## 13. What this proof does not cover
 
 - The bootstrap phase (stages 0 and 1 use circulating-supply-based advancement; the proof applies from stage 2 onward in the standard-tranche model)
 - The 30-stage hard cap of the current implementation (convergence is asymptotic; the worst-case claim holds at every stage)

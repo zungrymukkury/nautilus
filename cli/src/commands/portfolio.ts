@@ -85,7 +85,7 @@ export async function portfolioCommand() {
               {
                 encoding: "base64",
                 filters: [
-                  { dataSize: 283 },
+                  { dataSize: 363 },
                   { memcmp: { offset: 73, bytes: mint } }
                 ]
               }

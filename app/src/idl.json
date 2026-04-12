@@ -391,6 +391,10 @@
           "name": "token_metadata_program"
         },
         {
+          "name": "sysvar_instructions",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -630,6 +634,11 @@
       "code": 6006,
       "name": "InvalidMetadata",
       "msg": "Invalid metadata: name/symbol/uri too long"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidTokenMetadataProgram",
+      "msg": "Invalid token metadata program"
     }
   ],
   "types": [
@@ -671,7 +680,7 @@
             "type": {
               "array": [
                 "u64",
-                20
+                30
               ]
             }
           },

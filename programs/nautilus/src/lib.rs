@@ -28,8 +28,8 @@ use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 use anchor_spl::token::{self, Mint, MintTo, Token, TokenAccount, Burn};
 use anchor_spl::associated_token::AssociatedToken;
-use mpl_token_metadata::instructions::CreateMetadataAccountV3CpiBuilder;
-use mpl_token_metadata::types::DataV2;
+use mpl_token_metadata::instructions::CreateV1CpiBuilder;
+use mpl_token_metadata::types::TokenStandard;
 
 declare_id!("32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev");
 
@@ -141,26 +141,47 @@ pub mod nautilus {
         let mint_seeds: &[&[u8]] = &[b"nautilus", state_key.as_ref(), &[mint_bump]];
         let signer_seeds = &[mint_seeds];
 
-        CreateMetadataAccountV3CpiBuilder::new(
+        CreateV1CpiBuilder::new(
             &ctx.accounts.token_metadata_program.to_account_info(),
         )
         .metadata(&ctx.accounts.metadata.to_account_info())
-        .mint(&ctx.accounts.mint.to_account_info())
-        .mint_authority(&ctx.accounts.mint_authority.to_account_info())
+        .master_edition(None)
+        .mint(&ctx.accounts.mint.to_account_info(), false)
+        .authority(&ctx.accounts.mint_authority.to_account_info())
         .payer(&ctx.accounts.authority.to_account_info())
-        .update_authority(&ctx.accounts.mint_authority.to_account_info(), true)
+        .update_authority(&ctx.accounts.authority.to_account_info(), false)
         .system_program(&ctx.accounts.system_program.to_account_info())
-        .data(DataV2 {
-            name,
-            symbol,
-            uri,
-            seller_fee_basis_points: 0,
-            creators: None,
-            collection: None,
-            uses: None,
-        })
-        .is_mutable(true)
+        .sysvar_instructions(&ctx.accounts.sysvar_instructions.to_account_info())
+        .spl_token_program(Some(&ctx.accounts.token_program.to_account_info()))
+        .name(name)
+        .symbol(symbol)
+        .uri(uri)
+        .seller_fee_basis_points(0)
+        .token_standard(TokenStandard::Fungible)
+        .is_mutable(false)
         .invoke_signed(signer_seeds)?;
+
+        // Explicitly create the treasury PDA as a system account.
+        // This ensures the account exists before any buy() attempts to transfer SOL into it.
+        let treasury_bump = ctx.bumps.treasury;
+        let state_key = ctx.accounts.state.key();
+        let treasury_seeds = &[b"treasury".as_ref(), state_key.as_ref(), &[treasury_bump]];
+        let treasury_signer = &[&treasury_seeds[..]];
+        let rent = Rent::get()?;
+        let lamports = rent.minimum_balance(0);
+        anchor_lang::system_program::create_account(
+            CpiContext::new_with_signer(
+                ctx.accounts.system_program.to_account_info(),
+                anchor_lang::system_program::CreateAccount {
+                    from: ctx.accounts.authority.to_account_info(),
+                    to: ctx.accounts.treasury.to_account_info(),
+                },
+                treasury_signer,
+            ),
+            lamports,
+            0,
+            &System::id(),
+        )?;
 
         msg!("Nautilus initialized");
         msg!("Treasury PDA: {}", ctx.accounts.treasury.key());
@@ -179,8 +200,6 @@ pub mod nautilus {
         // to prevent volume bots from advancing stages via repeated buy/sell cycles.
         // Stage 2+: standard cumulative issuance per tranche.
         let remaining = if stage <= 1 {
-            // Bootstrap phase: gate on circulating supply (total_sold)
-            // to prevent volume bots from advancing stage via repeated buy/sell.
             let target = if stage == 0 {
                 STAGE_SUPPLY[0]
             } else {
@@ -267,6 +286,10 @@ pub mod nautilus {
         require!(amount <= MAX_AMOUNT_PER_TX, NautilusError::ExceedsMaxAmount);
 
         let state = &mut ctx.accounts.state;
+
+        // Full exit (amount == total_sold) is permitted.
+        // The proof note's sell-price monotonicity applies when post-sell supply > 0.
+        // When total_sold reaches 0, sell price is undefined but the protocol is quiescent.
         require!(state.total_sold >= amount, NautilusError::InvalidAmount);
 
         let avg_price = state.treasury_balance
@@ -276,9 +299,13 @@ pub mod nautilus {
         let spread = gross.checked_mul(SPREAD_BPS).ok_or(NautilusError::Overflow)? / 10_000;
         let payout = gross - spread;
 
+        // Solvency check: use actual treasury lamports to verify payout is feasible.
+        // state.treasury_balance is the price source of truth (accounted value),
+        // but transferability must be verified against actual lamports held by the PDA.
         let rent_minimum = Rent::get()?.minimum_balance(0);
+        let treasury_lamports = ctx.accounts.treasury.to_account_info().lamports();
         require!(
-            state.treasury_balance >= payout + rent_minimum,
+            treasury_lamports >= payout + rent_minimum,
             NautilusError::InsufficientTreasury
         );
 
@@ -375,12 +402,13 @@ pub struct Initialize<'info> {
     #[account(seeds = [b"nautilus", state.key().as_ref()], bump)]
     pub mint_authority: UncheckedAccount<'info>,
 
+    /// CHECK: Treasury PDA — created explicitly in initialize() via system_program::create_account CPI
     #[account(
         mut,
         seeds = [b"treasury", state.key().as_ref()],
         bump,
     )]
-    pub treasury: SystemAccount<'info>,
+    pub treasury: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -401,6 +429,10 @@ pub struct Initialize<'info> {
     /// CHECK: Validated against mpl_token_metadata::ID constant
     #[account(constraint = token_metadata_program.key() == mpl_token_metadata::ID @ NautilusError::InvalidTokenMetadataProgram)]
     pub token_metadata_program: UncheckedAccount<'info>,
+
+    /// CHECK: Sysvar instructions — required by CreateV1
+    #[account(address = anchor_lang::solana_program::sysvar::instructions::ID)]
+    pub sysvar_instructions: UncheckedAccount<'info>,
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,

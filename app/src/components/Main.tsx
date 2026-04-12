@@ -388,7 +388,7 @@ function HomePage() {
                 method: 'getProgramAccounts',
                 params: [
                   PROGRAM_ID.toString(),
-                  { encoding: 'base64', filters: [{ dataSize: 283 }, { memcmp: { offset: 73, bytes: mint } }] }
+                  { encoding: 'base64', filters: [{ dataSize: 363 }, { memcmp: { offset: 73, bytes: mint } }] }
                 ]
               })
             });
@@ -398,7 +398,7 @@ function HomePage() {
               const raw = Buffer.from(stateAcc.account.data[0], 'base64');
               const totalSold = Number(raw.readBigUInt64LE(106));
               const currentStage = raw.readUInt8(114);
-              const treasuryBalance = Number(raw.readBigUInt64LE(275));
+              const treasuryBalance = Number(raw.readBigUInt64LE(355));
               const sellPrice = totalSold > 0 ? Math.floor(treasuryBalance / totalSold) : 0;
               holdingTokens.push({ stateAddress: stateAcc.pubkey, mint, balance, sellPrice, currentStage });
             }
@@ -413,7 +413,7 @@ function HomePage() {
             method: 'getProgramAccounts',
             params: [
               PROGRAM_ID.toString(),
-              { encoding: 'base64', filters: [{ dataSize: 283 }, { memcmp: { offset: 8, bytes: walletStr } }] }
+              { encoding: 'base64', filters: [{ dataSize: 363 }, { memcmp: { offset: 8, bytes: walletStr } }] }
             ]
           })
         });
@@ -423,7 +423,7 @@ function HomePage() {
           const mint = new PublicKey(raw.slice(73, 105)).toString();
           const totalSold = Number(raw.readBigUInt64LE(106));
           const currentStage = raw.readUInt8(114);
-          const treasuryBalance = Number(raw.readBigUInt64LE(275));
+          const treasuryBalance = Number(raw.readBigUInt64LE(355));
           const sellPrice = totalSold > 0 ? Math.floor(treasuryBalance / totalSold) : 0;
           return { stateAddress: acc.pubkey, mint, sellPrice, currentStage };
         });
@@ -461,7 +461,7 @@ function HomePage() {
             method: 'getProgramAccounts',
             params: [
               PROGRAM_ID.toString(),
-              { encoding: 'base64', filters: [{ dataSize: 283 }, { memcmp: { offset: 73, bytes: addr } }] }
+              { encoding: 'base64', filters: [{ dataSize: 363 }, { memcmp: { offset: 73, bytes: addr } }] }
             ]
           })
         });

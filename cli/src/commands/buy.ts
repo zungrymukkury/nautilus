@@ -2,7 +2,7 @@ import chalk from "chalk";
 import { PublicKey } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { getProvider, loadWallet, loadIdl, PROGRAM_ID, FIB, BASE_PRICE, MAX_PER_TX, getPDAs, formatLamports, resolveState } from "../config";
+import { getProvider, loadWallet, loadIdl, PROGRAM_ID, PRICE_TABLE, MAX_PER_TX, getPDAs, formatLamports, resolveState } from "../config";
 
 export async function buyCommand(stateAddress: string, amount: number) {
   if (amount <= 0) {
@@ -23,7 +23,7 @@ export async function buyCommand(stateAddress: string, amount: number) {
     const { mintAuthority, treasury } = getPDAs(stateKey);
     const mint = state.mint as PublicKey;
     const stage = state.currentStage;
-    const buyPrice = BASE_PRICE * FIB[stage];
+    const buyPrice = PRICE_TABLE[stage];
     const totalCost = buyPrice * amount;
 
     console.log(chalk.cyan("\n🐚 Nautilus Buy\n"));

@@ -3,7 +3,7 @@ import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import { Program, AnchorProvider, BN } from '@coral-xyz/anchor';
 import { getAssociatedTokenAddress, getAccount } from '@solana/spl-token';
-import { STATE_ADDRESS, FIB, BASE_PRICE } from '../constants';
+import { STATE_ADDRESS, PRICE_TABLE } from '../constants';
 import idl from '../idl.json';
 
 export interface NautilusState {
@@ -40,7 +40,7 @@ export function useNautilus() {
       const stage = s.currentStage;
       const totalSold = s.totalSold.toNumber();
       const treasuryBalance = s.treasuryBalance.toNumber();
-      const buyPrice = BASE_PRICE * FIB[stage];
+      const buyPrice = PRICE_TABLE[stage];
       const sellPrice = totalSold === 0 ? 0 : Math.floor(treasuryBalance / totalSold);
       const mint = s.mint as PublicKey;
 
@@ -76,7 +76,7 @@ export function useNautilus() {
     try {
       let remaining = amount;
       while (remaining > 0) {
-        const chunk = Math.min(remaining, 1_000_000);
+        const chunk = Math.min(remaining, 100_000);
         await program.methods
           .buy(new BN(chunk))
           .accounts({ state: STATE_ADDRESS, mint: state.mint, buyer: wallet.publicKey })
@@ -98,7 +98,7 @@ export function useNautilus() {
     try {
       let remaining = amount;
       while (remaining > 0) {
-        const chunk = Math.min(remaining, 1_000_000);
+        const chunk = Math.min(remaining, 100_000);
         await program.methods
           .sell(new BN(chunk))
           .accounts({ state: STATE_ADDRESS, mint: state.mint, seller: wallet.publicKey })
