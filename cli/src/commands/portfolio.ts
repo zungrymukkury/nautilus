@@ -98,7 +98,7 @@ export async function portfolioCommand() {
           const raw = Buffer.from(stateAcc.account.data[0], "base64");
           const totalSold = Number(raw.readBigUInt64LE(106));
           const currentStage = raw.readUInt8(114);
-          const treasuryBalance = Number(raw.readBigUInt64LE(275));
+          const treasuryBalance = Number(raw.readBigUInt64LE(355));
           const sellPrice = totalSold > 0 ? Math.floor(treasuryBalance / totalSold) : 0;
           tokens.push({ stateAddress: stateAcc.pubkey, mint, balance, sellPrice, currentStage });
         }
