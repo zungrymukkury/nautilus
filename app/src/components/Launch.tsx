@@ -128,6 +128,7 @@ export function Launch() {
           authority: publicKey,
           metadata: metadataPDA,
           tokenMetadataProgram: MPL_TOKEN_METADATA_PROGRAM_ID,
+          sysvarInstructions: new PublicKey('Sysvar1nstructions1111111111111111111111111'),
         })
         .signers([pendingState, pendingMint])
         .transaction();
