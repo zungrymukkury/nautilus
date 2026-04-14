@@ -85,7 +85,7 @@ export async function initCommand(
   const metadata = {
     name,
     symbol,
-    description: `${name} - Fibonacci-powered, treasury-backed token on Solana.`,
+    description: `${name} - A Nautilus Protocol token.`,
     image: logoUrl,
     external_url: `https://zungrymukkury.github.io/nautilus/?state=${stateKeypair.publicKey.toString()}`,
     attributes: []
