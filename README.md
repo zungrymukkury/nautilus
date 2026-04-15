@@ -11,9 +11,11 @@
 
 A recovery-floor-first, treasury-backed token launch framework with a Fibonacci issuance ladder on Solana.
 
-```
-No on-chain admin. No private key. Just math.
-```
+**Program ID:** `32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev`
+
+**Frontend:** https://zungrymukkury.github.io/nautilus/
+
+---
 
 ## Why Nautilus?
 
@@ -136,7 +138,7 @@ node cli/dist/index.js portfolio
 | Sell price | Weighted average (`treasury_balance ÷ total_sold`) |
 | Treasury | PDA — no private key |
 | Mint authority | PDA — no private key |
-| Token Metadata | Registered via Metaplex CPI |
+| Token Metadata | Registered via Metaplex CPI (Fungible, immutable) |
 | Metadata storage | Arweave (permanent) |
 | Admin functions | None |
 | Upgrade authority | Held by deployer (verify on-chain) |
@@ -158,7 +160,7 @@ No on-chain admin functions exist. Upgrade authority is currently held by the de
 
 To verify:
 ```bash
-solana program show <PROGRAM_ID>
+solana program show 32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev
 ```
 
 ## Tests
@@ -179,8 +181,8 @@ make test-local
 
 - [x] Localnet — 28/28 tests passing
 - [x] Automated security audit — 26/26 PASS on every push
-- [ ] Mainnet deployment (pending)
-- [ ] Upgrade authority revoked
+- [x] Mainnet deployment — Program ID: `32hXzUiArykkvmxZGtaAZxWgy9fZm2Zcgdc5wvsQDuev`
+- [ ] Upgrade authority revoked (v0.6 planned)
 
 Framework: Anchor 0.32.1
 
