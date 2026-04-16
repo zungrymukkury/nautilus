@@ -1,0 +1,117 @@
+<svg width="100%" viewBox="0 0 780 500" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>Protocol exit price holds when a whale exits</title>
+  <desc>
+    Illustrative Nautilus example. A whale exits by selling 40 tokens back to the protocol.
+    Treasury falls from 100 SOL to 60 SOL, circulating supply falls from 100 to 60,
+    and the protocol exit price remains 1 SOL per token. 0.5% spread ignored for simplicity.
+  </desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto">
+    <path d="M1 1 L9 5 L1 9 Z" fill="#73726c"/>
+    </marker>
+    <clipPath id="tankBefore">
+      <rect x="150" y="120" width="110" height="180" rx="10"/>
+    </clipPath>
+    <clipPath id="tankAfter">
+      <rect x="520" y="120" width="110" height="180" rx="10"/>
+    </clipPath>
+  </defs>
+
+  <!-- palette -->
+  <style>
+    .title { font: 700 16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #141413; }
+    .subtitle { font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #3d3d3a; }
+    .body { font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #3d3d3a; }
+    .strong { font: 600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #141413; }
+    .tankLabel { font: 700 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #141413; }
+    .tankSub { font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #3d3d3a; }
+    .noteStrong { font: 600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #141413; }
+    .note { font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #3d3d3a; }
+  </style>
+
+  <!-- Header -->
+  <text x="390" y="34" text-anchor="middle" class="title">Protocol exit price holds when a whale exits</text>
+  <text x="390" y="56" text-anchor="middle" class="subtitle">illustrative example · ignoring the 0.5% spread for simplicity</text>
+
+  <!-- BEFORE label -->
+  <text x="205" y="86" text-anchor="middle" class="strong">Before</text>
+  <text x="205" y="104" text-anchor="middle" class="subtitle">100 SOL · 100 tokens</text>
+
+  <!-- AFTER label -->
+  <text x="575" y="86" text-anchor="middle" class="strong">After whale exits</text>
+  <text x="575" y="104" text-anchor="middle" class="subtitle">60 SOL · 60 tokens</text>
+
+  <!-- center arrow -->
+  <line x1="320" y1="230" x2="460" y2="230" stroke="#73726c" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="390" y="205" text-anchor="middle" class="strong">whale exit</text>
+  <text x="390" y="248" text-anchor="middle" class="body">40 tokens burned</text>
+  <text x="390" y="264" text-anchor="middle" class="body">40 SOL leaves treasury</text>
+
+  <!-- BEFORE tank -->
+  <rect x="150" y="120" width="110" height="180" rx="10" fill="none" stroke="rgba(31,30,29,0.4)" stroke-width="1.5"/>
+  <g clip-path="url(#tankBefore)">
+    <rect x="150" y="148" width="110" height="152" fill="#1D9E75" opacity="0.18"/>
+    <path d="M150 151 Q180 143 205 151 Q230 159 260 151 L260 300 L150 300 Z" fill="#1D9E75" opacity="0.24"/>
+  </g>
+  <text x="205" y="218" text-anchor="middle" class="tankLabel">100 SOL</text>
+  <text x="205" y="332" text-anchor="middle" class="tankSub">protocol exit price</text>
+  <text x="205" y="350" text-anchor="middle" class="tankLabel">1 SOL / token</text>
+
+  <!-- AFTER tank -->
+  <rect x="520" y="120" width="110" height="180" rx="10" fill="none" stroke="rgba(31,30,29,0.4)" stroke-width="1.5"/>
+  <g clip-path="url(#tankAfter)">
+    <rect x="520" y="192" width="110" height="108" fill="#1D9E75" opacity="0.18"/>
+    <path d="M520 195 Q550 187 575 195 Q600 203 630 195 L630 300 L520 300 Z" fill="#1D9E75" opacity="0.24"/>
+  </g>
+  <text x="575" y="252" text-anchor="middle" class="tankLabel">60 SOL</text>
+  <text x="575" y="332" text-anchor="middle" class="tankSub">protocol exit price</text>
+  <text x="575" y="350" text-anchor="middle" class="tankLabel">1 SOL / token</text>
+
+  <!-- Whale icon -->
+  <g transform="translate(44 132)" fill="none" stroke="#378ADD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 34
+             C8 18, 22 8, 42 8
+             C58 8, 71 14, 79 24
+             C84 23, 89 20, 94 16
+             C93 23, 91 28, 87 32
+             C91 35, 93 40, 94 48
+             C89 44, 84 41, 79 40
+             C71 50, 58 56, 42 56
+             C22 56, 8 46, 8 34 Z"/>
+    <path d="M22 44 C34 48, 52 48, 66 42"/>
+    <path d="M79 24 C86 25, 91 27, 96 32"/>
+    <path d="M79 40 C86 39, 91 37, 96 32"/>
+    <circle cx="30" cy="26" r="1.8" fill="#378ADD" stroke="none"/>
+    <path d="M32 8 C30 2, 34 -2, 38 2"/>
+    <path d="M40 8 C39 3, 43 0, 46 4"/>
+  </g>
+  <text x="94" y="212" text-anchor="middle" class="body" fill="#378ADD">whale</text>
+  <text x="94" y="228" text-anchor="middle" class="body" fill="#378ADD">40 tokens</text>
+
+  <!-- BEFORE holders -->
+  <g stroke="#73726c" stroke-width="1.2" fill="none" stroke-linecap="round">
+    <circle cx="302" cy="155" r="8"/><line x1="302" y1="163" x2="302" y2="179"/><line x1="302" y1="169" x2="290" y2="177"/><line x1="302" y1="169" x2="314" y2="177"/><line x1="302" y1="179" x2="296" y2="193"/><line x1="302" y1="179" x2="308" y2="193"/>
+    <circle cx="302" cy="238" r="8"/><line x1="302" y1="246" x2="302" y2="262"/><line x1="302" y1="252" x2="290" y2="260"/><line x1="302" y1="252" x2="314" y2="260"/><line x1="302" y1="262" x2="296" y2="276"/><line x1="302" y1="262" x2="308" y2="276"/>
+    <circle cx="302" cy="321" r="8"/><line x1="302" y1="329" x2="302" y2="345"/><line x1="302" y1="335" x2="290" y2="343"/><line x1="302" y1="335" x2="314" y2="343"/><line x1="302" y1="345" x2="296" y2="359"/><line x1="302" y1="345" x2="308" y2="359"/>
+  </g>
+  <text x="302" y="207" text-anchor="middle" class="body">20 tokens</text>
+  <text x="302" y="290" text-anchor="middle" class="body">20 tokens</text>
+  <text x="302" y="373" text-anchor="middle" class="body">20 tokens</text>
+
+  <!-- AFTER holders -->
+  <g stroke="#0F6E56" stroke-width="1.5" fill="none" stroke-linecap="round">
+    <circle cx="666" cy="155" r="8"/><line x1="666" y1="163" x2="666" y2="179"/><line x1="666" y1="169" x2="654" y2="177"/><line x1="666" y1="169" x2="678" y2="177"/><line x1="666" y1="179" x2="660" y2="193"/><line x1="666" y1="179" x2="672" y2="193"/>
+    <circle cx="666" cy="238" r="8"/><line x1="666" y1="246" x2="666" y2="262"/><line x1="666" y1="252" x2="654" y2="260"/><line x1="666" y1="252" x2="678" y2="260"/><line x1="666" y1="262" x2="660" y2="276"/><line x1="666" y1="262" x2="672" y2="276"/>
+    <circle cx="666" cy="321" r="8"/><line x1="666" y1="329" x2="666" y2="345"/><line x1="666" y1="335" x2="654" y2="343"/><line x1="666" y1="335" x2="678" y2="343"/><line x1="666" y1="345" x2="660" y2="359"/><line x1="666" y1="345" x2="672" y2="359"/>
+  </g>
+  <text x="666" y="207" text-anchor="middle" class="body" fill="#0F6E56">20 tokens</text>
+  <text x="666" y="290" text-anchor="middle" class="body" fill="#0F6E56">20 tokens</text>
+  <text x="666" y="373" text-anchor="middle" class="body" fill="#0F6E56">20 tokens</text>
+
+  <!-- key message -->
+  <rect x="180" y="402" width="420" height="48" rx="10" fill="#1D9E75" opacity="0.10"/>
+  <text x="390" y="423" text-anchor="middle" class="noteStrong">treasury −40 SOL · circulating supply −40 tokens</text>
+<text x="390" y="442" text-anchor="middle" class="note">protocol sell price = treasury ÷ circulating supply → still 1 SOL / token</text>
+</svg>
