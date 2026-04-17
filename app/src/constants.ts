@@ -9,8 +9,15 @@ const params = new URLSearchParams(
   typeof window !== 'undefined' ? window.location.search : ''
 );
 
-export const STATE_ADDRESS = new PublicKey(params.get('state') ?? DEFAULT_STATE);
-export const MINT_ADDRESS  = new PublicKey(params.get('mint')  ?? DEFAULT_MINT);
+const urlState = params.get('state');
+const urlMint  = params.get('mint');
+
+export const STATE_ADDRESS = new PublicKey(urlState ?? DEFAULT_STATE);
+export const MINT_ADDRESS  = new PublicKey(urlMint  ?? DEFAULT_MINT);
+
+// true = official canonical Nautilus instance (DEFAULT_STATE)
+// false = user-supplied or third-party instance via ?state=
+export const IS_CANONICAL = !urlState || urlState === DEFAULT_STATE;
 
 export const RPC_ENDPOINT = 'https://mainnet.helius-rpc.com/?api-key=347da966-6882-46a4-a3ee-ac636bddeeb3';
 

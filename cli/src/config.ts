@@ -64,7 +64,7 @@ export function loadWallet(): Keypair {
 }
 
 export function getConnection(): Connection {
-  const rpc = process.env.NAUTILUS_RPC || "http://127.0.0.1:8899";
+  const rpc = process.env.NAUTILUS_RPC || "https://api.mainnet-beta.solana.com";
   return new Connection(rpc, "confirmed");
 }
 
@@ -101,7 +101,7 @@ export async function resolveState(input: string): Promise<PublicKey> {
 
   // まずStateアドレスとして試す（getNautilusStateでfetchできるか）
   // getProgramAccountsでmint=inputのStateを検索してみる
-  const rpcUrl = process.env.NAUTILUS_RPC || "http://127.0.0.1:8899";
+  const rpcUrl = process.env.NAUTILUS_RPC || "https://api.mainnet-beta.solana.com";
   const res = await fetch(rpcUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -9,7 +9,7 @@ import {
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
 import { useNautilus } from '../hooks/useNautilus';
-import { PROGRAM_ID, RPC_ENDPOINT } from '../constants';
+import { PROGRAM_ID, RPC_ENDPOINT, IS_CANONICAL } from '../constants';
 import { Launch } from './Launch';
 import './Main.css';
 
@@ -79,6 +79,7 @@ function TokenPage() {
   const [recipient, setRecipient] = useState('');
   const [txStatus, setTxStatus] = useState<string | null>(null);
   const [meta, setMeta] = useState<TokenMeta>({});
+  const [unverifiedAcknowledged, setUnverifiedAcknowledged] = useState(false);
 
   useEffect(() => {
     if (!state) return;
@@ -88,6 +89,7 @@ function TokenPage() {
   const handleBuy = async () => {
     const n = parseInt(amount);
     if (!n || n <= 0) return;
+    if (!IS_CANONICAL && !unverifiedAcknowledged) return;
     try {
       setTxStatus('Confirm in Phantom...');
       await buy(n);
@@ -101,6 +103,7 @@ function TokenPage() {
   const handleSell = async () => {
     const n = parseInt(amount);
     if (!n || n <= 0) return;
+    if (!IS_CANONICAL && !unverifiedAcknowledged) return;
     try {
       setTxStatus('Confirm in Phantom...');
       await sell(n);
@@ -187,6 +190,20 @@ function TokenPage() {
   return (
     <div>
       <button className="back-btn" onClick={() => { window.location.href = '/nautilus/'; }}>← Back</button>
+
+      {!IS_CANONICAL && (
+        <div className="unverified-banner">
+          <span>⚠️ This token was created on the Nautilus protocol but is <strong>not the canonical NAUT token</strong>. Anyone can launch a token using this protocol.</span>
+          {!unverifiedAcknowledged && (
+            <button
+              className="unverified-ack-btn"
+              onClick={() => setUnverifiedAcknowledged(true)}
+            >
+              I understand — show buy/sell
+            </button>
+          )}
+        </div>
+      )}
 
       {state && (
         <section className="status-card">
@@ -303,12 +320,12 @@ function TokenPage() {
               </div>
             )}
             {tab === 'buy' && (
-              <button className="action-btn buy-btn" onClick={handleBuy} disabled={loading || !amount || parseInt(amount) <= 0}>
+              <button className="action-btn buy-btn" onClick={handleBuy} disabled={loading || !amount || parseInt(amount) <= 0 || (!IS_CANONICAL && !unverifiedAcknowledged)}>
                 {loading ? 'Processing...' : 'Buy'}
               </button>
             )}
             {tab === 'sell' && (
-              <button className="action-btn sell-btn" onClick={handleSell} disabled={loading || !amount || parseInt(amount) <= 0}>
+              <button className="action-btn sell-btn" onClick={handleSell} disabled={loading || !amount || parseInt(amount) <= 0 || (!IS_CANONICAL && !unverifiedAcknowledged)}>
                 {loading ? 'Processing...' : 'Sell'}
               </button>
             )}
