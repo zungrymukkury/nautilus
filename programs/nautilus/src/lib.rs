@@ -223,6 +223,11 @@ pub mod nautilus {
         state.treasury_balance = state.treasury_balance
             .checked_add(total_cost)
             .ok_or(NautilusError::Overflow)?;
+        // NOTE: During bootstrap (stage 0/1), progression is gated by current circulating
+        // supply (`total_sold`), not by cumulative issuance.
+        // Therefore `stage_sold[0]` and `stage_sold[1]` are bookkeeping-only and may
+        // exceed `STAGE_SUPPLY[0/1]` under buy/sell cycling.
+        // This does not affect pricing or stage advancement.
         state.stage_sold[stage] = state.stage_sold[stage]
             .checked_add(amount)
             .ok_or(NautilusError::Overflow)?;
@@ -304,8 +309,11 @@ pub mod nautilus {
         // but transferability must be verified against actual lamports held by the PDA.
         let rent_minimum = Rent::get()?.minimum_balance(0);
         let treasury_lamports = ctx.accounts.treasury.to_account_info().lamports();
+        let required = payout
+            .checked_add(rent_minimum)
+            .ok_or(NautilusError::Overflow)?;
         require!(
-            treasury_lamports >= payout + rent_minimum,
+            treasury_lamports >= required,
             NautilusError::InsufficientTreasury
         );
 
