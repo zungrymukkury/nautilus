@@ -68,12 +68,27 @@ export function useNautilus() {
     }
   }, [connection, wallet.publicKey, state]);
 
-  const buy = useCallback(async (amount: number) => {
+  const buy = useCallback(async (amount: number, confirmedStage?: number) => {
     const program = getProgram();
     if (!program || !wallet.publicKey || !state) throw new Error('Wallet not connected');
     setLoading(true);
     setError(null);
     try {
+      // Re-fetch state immediately before submitting to detect stage advances.
+      // If the stage changed since the user saw the price, throw a StageChanged error
+      // so the UI can prompt for confirmation before proceeding.
+      const provider = new AnchorProvider(connection, {} as any, { commitment: 'confirmed' });
+      const freshProgram = new Program(idl as any, provider);
+      const fresh = await (freshProgram.account as any).nautilusState.fetch(STATE_ADDRESS);
+      const freshStage = fresh.currentStage;
+      if (confirmedStage === undefined && freshStage !== state.currentStage) {
+        const freshBuyPrice = PRICE_TABLE[freshStage];
+        throw Object.assign(
+          new Error('StageChanged'),
+          { freshStage, freshBuyPrice }
+        );
+      }
+
       let remaining = amount;
       while (remaining > 0) {
         const chunk = Math.min(remaining, 100_000);
@@ -88,7 +103,7 @@ export function useNautilus() {
     } finally {
       setLoading(false);
     }
-  }, [getProgram, wallet.publicKey, state, fetchState, fetchBalances]);
+  }, [getProgram, wallet.publicKey, state, fetchState, fetchBalances, connection]);
 
   const sell = useCallback(async (amount: number) => {
     const program = getProgram();

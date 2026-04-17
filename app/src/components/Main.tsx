@@ -81,6 +81,8 @@ function TokenPage() {
   const [meta, setMeta] = useState<TokenMeta>({});
   const [unverifiedAcknowledged, setUnverifiedAcknowledged] = useState(false);
 
+  const [stageChangeWarning, setStageChangeWarning] = useState<{ freshStage: number; freshBuyPrice: number; amount: number } | null>(null);
+
   useEffect(() => {
     if (!state) return;
     fetchTokenMeta(state.mint.toString()).then(setMeta);
@@ -93,6 +95,25 @@ function TokenPage() {
     try {
       setTxStatus('Confirm in Phantom...');
       await buy(n);
+      setTxStatus('Done');
+      setAmount('');
+    } catch (e: any) {
+      if (e.message === 'StageChanged') {
+        setTxStatus(null);
+        setStageChangeWarning({ freshStage: e.freshStage, freshBuyPrice: e.freshBuyPrice, amount: n });
+        return;
+      }
+      setTxStatus('Error: ' + e.message?.slice(0, 60));
+    }
+  };
+
+  const handleBuyConfirmed = async () => {
+    if (!stageChangeWarning) return;
+    const { freshStage, amount: n } = stageChangeWarning;
+    setStageChangeWarning(null);
+    try {
+      setTxStatus('Confirm in Phantom...');
+      await buy(n, freshStage);
       setTxStatus('Done');
       setAmount('');
     } catch (e: any) {
@@ -312,6 +333,16 @@ function TokenPage() {
               <div className="estimate">
                 Est. payout: <strong>{payout.toFixed(4)} SOL</strong>
                 <span className="dim"> (0.5% spread)</span>
+              </div>
+            )}
+            {stageChangeWarning && (
+              <div className="stage-change-warning">
+                <strong>⚠️ Stage advanced while you were waiting.</strong>
+                <div>New stage: {stageChangeWarning.freshStage} — New buy price: {(stageChangeWarning.freshBuyPrice / 1e9).toFixed(6)} SOL</div>
+                <div className="stage-change-btns">
+                  <button className="action-btn buy-btn" onClick={handleBuyConfirmed}>Buy at new price</button>
+                  <button className="cancel-btn" onClick={() => setStageChangeWarning(null)}>Cancel</button>
+                </div>
               </div>
             )}
             {txStatus && (
