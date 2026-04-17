@@ -30,8 +30,19 @@ export async function buyCommand(stateAddress: string, amount: number) {
     console.log(chalk.white("  Stage:      "), chalk.yellow(stage.toString()));
     console.log(chalk.white("  Price/token:"), chalk.green(formatLamports(buyPrice)));
     console.log(chalk.white("  Amount:     "), chalk.white(`${amount.toLocaleString()} tokens`));
-    console.log(chalk.white("  Total cost: "), chalk.yellow(formatLamports(totalCost)));
+    console.log(chalk.white("  Est. cost:  "), chalk.yellow(formatLamports(totalCost)), chalk.gray("(at current stage, assuming no stage advance)"));
     console.log();
+
+    // Re-fetch state immediately before submitting to catch stage advances.
+    const freshState: any = await (program as any).account.nautilusState.fetch(stateKey);
+    const freshStage = freshState.currentStage;
+    if (freshStage !== stage) {
+      const freshPrice = PRICE_TABLE[freshStage];
+      console.error(chalk.yellow(`  ⚠ Stage advanced to ${freshStage} while preparing tx.`));
+      console.error(chalk.yellow(`    New buy price: ${formatLamports(freshPrice)}`));
+      console.error(chalk.red("  Aborted. Re-run to buy at the new price."));
+      process.exit(1);
+    }
 
     // Check wallet balance
     const balance = await provider.connection.getBalance(wallet.publicKey);
@@ -44,9 +55,26 @@ export async function buyCommand(stateAddress: string, amount: number) {
 
     // Split into chunks if needed
     let remaining = amount;
+    let expectedStage = stage;
     let txCount = 0;
 
     while (remaining > 0) {
+      // Re-check stage before every chunk to catch advances mid-buy.
+      const chunkFresh: any = await (program as any).account.nautilusState.fetch(stateKey);
+      const chunkStage = chunkFresh.currentStage;
+      if (chunkStage !== expectedStage) {
+        const freshPrice = PRICE_TABLE[chunkStage];
+        if (txCount > 0) {
+          console.error(chalk.yellow(`  ⚠ Stage advanced to ${chunkStage} after partial fill (${txCount} tx completed).`));
+          console.error(chalk.yellow(`    New buy price: ${formatLamports(freshPrice)}`));
+          console.error(chalk.red("  Aborted after partial fill. Re-run to continue at the new price."));
+        } else {
+          console.error(chalk.yellow(`  ⚠ Stage advanced to ${chunkStage} while preparing tx.`));
+          console.error(chalk.yellow(`    New buy price: ${formatLamports(freshPrice)}`));
+          console.error(chalk.red("  Aborted. Re-run to buy at the new price."));
+        }
+        process.exit(1);
+      }
       const chunk = Math.min(remaining, MAX_PER_TX);
       const sig = await program.methods
         .buy(new anchor.BN(chunk))
@@ -65,6 +93,7 @@ export async function buyCommand(stateAddress: string, amount: number) {
 
       txCount++;
       remaining -= chunk;
+      expectedStage = chunkStage;
       console.log(chalk.green(`  ✓ tx ${txCount}: ${chunk.toLocaleString()} tokens`), chalk.gray(`(${sig.slice(0, 16)}...)`));
     }
 

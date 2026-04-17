@@ -81,7 +81,7 @@ function TokenPage() {
   const [meta, setMeta] = useState<TokenMeta>({});
   const [unverifiedAcknowledged, setUnverifiedAcknowledged] = useState(false);
 
-  const [stageChangeWarning, setStageChangeWarning] = useState<{ freshStage: number; freshBuyPrice: number; amount: number } | null>(null);
+  const [stageChangeWarning, setStageChangeWarning] = useState<{ freshStage: number; freshBuyPrice: number; amount: number; partialFill: boolean } | null>(null);
 
   useEffect(() => {
     if (!state) return;
@@ -100,7 +100,12 @@ function TokenPage() {
     } catch (e: any) {
       if (e.message === 'StageChanged') {
         setTxStatus(null);
-        setStageChangeWarning({ freshStage: e.freshStage, freshBuyPrice: e.freshBuyPrice, amount: n });
+        setStageChangeWarning({
+          freshStage: e.freshStage,
+          freshBuyPrice: e.freshBuyPrice,
+          amount: n,
+          partialFill: !!e.partialFill,
+        });
         return;
       }
       setTxStatus('Error: ' + e.message?.slice(0, 60));
@@ -117,6 +122,16 @@ function TokenPage() {
       setTxStatus('Done');
       setAmount('');
     } catch (e: any) {
+      if (e.message === 'StageChanged') {
+        setTxStatus(null);
+        setStageChangeWarning({
+          freshStage: e.freshStage,
+          freshBuyPrice: e.freshBuyPrice,
+          amount: n,
+          partialFill: !!e.partialFill,
+        });
+        return;
+      }
       setTxStatus('Error: ' + e.message?.slice(0, 60));
     }
   };
@@ -338,6 +353,9 @@ function TokenPage() {
             {stageChangeWarning && (
               <div className="stage-change-warning">
                 <strong>⚠️ Stage advanced while you were waiting.</strong>
+                {stageChangeWarning.partialFill && (
+                  <div>Part of your order already executed at the previous stage price. The rest was stopped because the stage advanced.</div>
+                )}
                 <div>New stage: {stageChangeWarning.freshStage} — New buy price: {(stageChangeWarning.freshBuyPrice / 1e9).toFixed(6)} SOL</div>
                 <div className="stage-change-btns">
                   <button className="action-btn buy-btn" onClick={handleBuyConfirmed}>Buy at new price</button>
